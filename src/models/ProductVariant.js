@@ -31,13 +31,16 @@ const productVariantSchema = new mongoose.Schema(
       min: 0,
     },
 
-    attributes: {
-      type: Map,
-      of: String,
-      required: true,
-      // ví dụ:
-      // { color: "Black", storage: "128GB" }
-    },
+    // THÊM TRƯỜNG NÀY VÀO:
+    attributes: [
+      {
+        attributeValueId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "AttributeValue", // Trỏ đến bảng AttributeValue của bạn
+          required: true,
+        },
+      },
+    ],
 
     image: {
       type: String,
@@ -65,6 +68,8 @@ const productVariantSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    isDeleted: { type: Boolean, default: false },
 
     isDefault: {
       type: Boolean,

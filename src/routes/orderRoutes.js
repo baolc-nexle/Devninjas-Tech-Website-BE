@@ -21,6 +21,8 @@ router.get("/:orderId", authMiddleWare, orderController.getOrderById);
 // Cancel order
 router.patch("/:orderId/cancel", authMiddleWare, orderController.cancelOrder);
 
+router.patch('/update-info/:orderId', authMiddleWare, orderController.updateOrderController);
+
 /* =======================
    ADMIN ROUTES
 ======================= */
@@ -29,7 +31,7 @@ router.patch("/:orderId/cancel", authMiddleWare, orderController.cancelOrder);
 router.get(
   "/admin/all",
   authMiddleWare,
-  roleMiddleWare,
+  // roleMiddleWare,
   orderController.getAllOrders,
 );
 
@@ -37,7 +39,7 @@ router.get(
 router.patch(
   "/admin/:orderId/status",
   authMiddleWare,
-  roleMiddleWare,
+  // roleMiddleWare,
   orderController.updateOrderStatus,
 );
 

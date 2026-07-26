@@ -40,28 +40,24 @@ export const getCategoryById = async (req, res) => {
 
 // CREATE
 export const createCategory = async (req, res) => {
+  console.log("Giá trị thực của req.body.isFeatured:", req.body.isFeatured, "Kiểu dữ liệu:", typeof req.body.isFeatured);
   try {
     const categoryData = {
       name: req.body.name,
       description: req.body.description,
       status: req.body.status,
+     isFeatured: req.body.isFeatured === true || req.body.isFeatured === 'true',
+      displayOrder: req.body.displayOrder || 0,
+      icon: req.body.icon,
       image: req.file ? `${req.file.filename}` : null,
     };
 
+    console.log("Dữ liệu trước khi gọi service:", categoryData); // Log thử ở đây
+
     const category = await categoryService.createCategory(categoryData);
-
-    console.log(category);
-
-    return res.status(201).json({
-      success: true,
-      message: "Create category successfully",
-      data: category,
-    });
+    return res.status(201).json({ success: true, message: "Create category successfully", data: category });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -70,34 +66,24 @@ export const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 1. Chuẩn bị dữ liệu update cơ bản từ body
     const updateData = {
       name: req.body.name,
       description: req.body.description,
       status: req.body.status,
+      isFeatured: req.body.isFeatured !== undefined ? req.body.isFeatured === 'true' : undefined,
+      displayOrder: req.body.displayOrder,
+      icon: req.body.icon
     };
 
-    // 2. Xử lý logic hình ảnh
     if (req.file) {
-      // Nếu có upload file mới, dùng tên file mới
       updateData.image = req.file.filename;
+      // Lưu ý: Nếu muốn chuyên nghiệp hơn, bạn nên xóa ảnh cũ tại đây giống như hàm deleteCategory
     }
 
-    const updatedCategory = await categoryService.updateCategory(
-      id,
-      updateData,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Update category successfully",
-      data: updatedCategory,
-    });
+    const updatedCategory = await categoryService.updateCategory(id, updateData);
+    return res.status(200).json({ success: true, message: "Update category successfully", data: updatedCategory });
   } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 // DELETE
@@ -151,6 +137,40 @@ export const deleteCategory = async (req, res) => {
     });
   } catch (error) {
     return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// GET FEATURED CATEGORIES (Dùng cho Trang chủ)
+export const getFeaturedCategories = async (req, res) => {
+  try {
+    const categories = await categoryService.getFeaturedCategories();
+    return res.status(200).json({
+      success: true,
+      message: "Get featured categories successfully",
+      data: categories,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// GET BY SLUG (Dùng cho SEO - Thay thế/Bổ sung cho GetById)
+export const getCategoryBySlug = async (req, res) => {
+  try {
+    const category = await categoryService.getCategoryBySlug(req.params.slug);
+    return res.status(200).json({
+      success: true,
+      message: "Get category by slug successfully",
+      data: category,
+    });
+  } catch (error) {
+    return res.status(404).json({
       success: false,
       message: error.message,
     });

@@ -3,14 +3,27 @@ import Payment from "../models/Payment.js";
 import { stripe } from "../config/stripe.js";
 import OrderDetail from "../models/OrderDetail.js";
 import * as stockService from "../services/stockService.js";
+import * as inventoryService from "../services/inventoryService.js";
 import * as crypto from "crypto";
 import axios from "axios";
 
 // checkout gateway Stripe for international
+
 export const createStripeCheckoutSession = async (orderId) => {
+  console.log("DEBUG: Nhận được orderId:", orderId);
   const order = await Order.findById(orderId);
+  console.log("DEBUG: Order tìm được từ DB:", order ? "Đã tìm thấy" : "KHÔNG TÌM THẤY");
 
   if (!order) throw new Error("Order không tồn tại");
+
+  // LOG QUAN TRỌNG: Kiểm tra cấu trúc metadata trước khi gửi
+  // Bổ sung thêm orderCode vào metadata để webhook dễ dàng định danh hơn
+  const metadataToSent = { 
+    orderId: orderId.toString(),
+    orderCode: order.orderCode // Bổ sung mới
+  };
+  console.log("DEBUG: Metadata chuẩn bị gửi cho Stripe:", metadataToSent);
+  console.log("DEBUG: Độ dài metadata:", JSON.stringify(metadataToSent).length);
 
   if (order.paymentStatus === "paid") {
     throw new Error("Order đã được thanh toán");
@@ -40,14 +53,16 @@ export const createStripeCheckoutSession = async (orderId) => {
     })),
 
     metadata: {
-      orderId: orderId.toString(), // 🔥 quan trọng để webhook map lại
+      orderId: orderId.toString(),
+      orderCode: order.orderCode, // 🔥 Bổ sung: để dùng trong webhook sau này
     },
 
-    success_url: `${process.env.CLIENT_URL}/success`,
+    // 🔥 Bổ sung: Thay đổi URL để hiển thị orderCode thay vì orderId
+    success_url: `${process.env.CLIENT_URL}/checkout/success?order_id=${order.orderCode}`,
     cancel_url: `${process.env.CLIENT_URL}/cancel`,
   });
 
-  return session;
+  return session.url;
 };
 
 export const handleStripeWebhook = async (rawBody, headers) => {
@@ -65,7 +80,8 @@ export const handleStripeWebhook = async (rawBody, headers) => {
     );
   } catch (err) {
     console.error("❌ Webhook verify fail:", err.message);
-    return;
+    // BỔ SUNG: Ném lỗi để Express Controller nhận biết và trả về status 400
+    throw new Error(`Webhook Error: ${err.message}`);
   }
 
   console.log("EVENT TYPE:", event.type);
@@ -110,20 +126,22 @@ export const handleStripeWebhook = async (rawBody, headers) => {
     }
 
     // 🔥 2. confirm stock
-    for (const item of items) {
-      console.log("➡️ CONFIRM STOCK:", item.variantId);
-
-      await stockService.confirmStock(item.variantId, item.quantity);
-
-      console.log("✅ DONE:", item.variantId);
-    }
+    // BỔ SUNG: Dùng Promise.all để xử lý song song, nhanh hơn và không bị block
+    await Promise.all(
+      items.map(async (item) => {
+        console.log("➡️ CONFIRM STOCK:", item.variantId);
+        await inventoryService.confirmStock(item.variantId, item.quantity);
+        console.log("✅ DONE:", item.variantId);
+      })
+    );
 
     // 🔥 3. update payment
     await Payment.findOneAndUpdate(
       { orderId },
       {
         status: "success",
-        transactionId: session.payment_intent,
+        transactionId: session.payment_intent, // Lưu thêm transaction ID để đối soát
+        method: "stripe",                      // BỔ SUNG: Ghi rõ phương thức
       },
       { upsert: true },
     );
@@ -135,174 +153,51 @@ export const handleStripeWebhook = async (rawBody, headers) => {
 
     await order.save();
 
-    console.log("🎉 ORDER UPDATED SUCCESS");
+    console.log("🎉 ORDER UPDATED SUCCESS:", order.orderCode);
   } catch (err) {
     console.error("❌ WEBHOOK PROCESS ERROR:", err.message);
+    // BỔ SUNG: Ném lại lỗi để Stripe biết cần gửi lại (Retry) webhook nếu có lỗi database
+    throw err; 
   }
 };
 
-// checkout MOMO
-// =========================
-// CREATE MOMO PAYMENT
-// =========================
-export const createMomoPayment = async (orderId) => {
+export const createCODPayment = async (orderId) => {
   const order = await Order.findById(orderId);
 
-  if (!order) throw new Error("Order không tồn tại");
+  if (!order) {
+    throw new Error("Order không tồn tại");
+  }
 
   if (order.paymentStatus === "paid") {
     throw new Error("Order đã thanh toán");
   }
 
-  const partnerCode = process.env.MOMO_PARTNER_CODE;
-  const accessKey = process.env.MOMO_ACCESS_KEY;
-  const secretKey = process.env.MOMO_SECRET_KEY;
+  const items = await OrderDetail.find({ orderId });
 
-  const requestId = partnerCode + new Date().getTime();
-
-  // 🔥 QUAN TRỌNG: dùng orderId thật
-  const momoOrderId = order._id.toString();
-
-  const amount = order.totalPrice.toString(); // VND
-  const orderInfo = `Thanh toán đơn hàng ${order._id}`;
-
-  const redirectUrl = `${process.env.CLIENT_URL}/success`;
-  const ipnUrl = `https://headgear-confining-punisher.ngrok-free.dev/api/payments/momo/webhook`;
-
-  const requestType = "captureWallet";
-  const extraData = "";
-
-  // =========================
-  // SIGNATURE
-  // =========================
-  const rawSignature =
-    `accessKey=${accessKey}` +
-    `&amount=${amount}` +
-    `&extraData=${extraData}` +
-    `&ipnUrl=${ipnUrl}` +
-    `&orderId=${momoOrderId}` +
-    `&orderInfo=${orderInfo}` +
-    `&partnerCode=${partnerCode}` +
-    `&redirectUrl=${redirectUrl}` +
-    `&requestId=${requestId}` +
-    `&requestType=${requestType}`;
-
-  const signature = crypto
-    .createHmac("sha256", secretKey)
-    .update(rawSignature)
-    .digest("hex");
-
-  const requestBody = {
-    partnerCode,
-    accessKey,
-    requestId,
-    amount,
-    orderId: momoOrderId,
-    orderInfo,
-    redirectUrl,
-    ipnUrl,
-    extraData,
-    requestType,
-    signature,
-    lang: "vi",
-  };
-
-  const response = await axios.post(
-    "https://test-payment.momo.vn/v2/gateway/api/create",
-    requestBody,
-  );
-
-  // =========================
-  // SAVE PAYMENT SESSION
-  // =========================
-  await Payment.findOneAndUpdate(
-    { orderId },
-    {
-      provider: "momo",
-      status: "pending",
-      transactionId: momoOrderId,
-    },
-    { upsert: true },
-  );
-  console.log("REQUEST BODY:", requestBody);
-  console.log("REQUEST BODY:", response.data);
-  return response.data;
-};
-
-// =========================
-// HANDLE MOMO WEBHOOK (IPN)
-// =========================
-export const handleMomoWebhook = async (req) => {
-  const data = req.body;
-
-  const { orderId, resultCode, message, transId, signature } = data;
-
-  // =========================
-  // VERIFY SIGNATURE (QUAN TRỌNG)
-  // =========================
-  const secretKey = process.env.MOMO_SECRET_KEY;
-
-  const rawSignature =
-    `accessKey=${data.accessKey}` +
-    `&amount=${data.amount}` +
-    `&extraData=${data.extraData}` +
-    `&message=${message}` +
-    `&orderId=${orderId}` +
-    `&orderInfo=${data.orderInfo}` +
-    `&orderType=${data.orderType}` +
-    `&partnerCode=${data.partnerCode}` +
-    `&payType=${data.payType}` +
-    `&requestId=${data.requestId}` +
-    `&responseTime=${data.responseTime}` +
-    `&resultCode=${resultCode}` +
-    `&transId=${transId}`;
-
-  const checkSignature = crypto
-    .createHmac("sha256", secretKey)
-    .update(rawSignature)
-    .digest("hex");
-
-  if (checkSignature !== signature) {
-    throw new Error("Invalid MoMo signature");
+  if (!items.length) {
+    throw new Error("Order không có sản phẩm");
   }
 
-  const order = await Order.findById(orderId);
-
-  if (!order) throw new Error("Order không tồn tại");
-
-  // chống duplicate webhook
-  if (order.paymentStatus === "paid") return true;
-
-  // =========================
-  // SUCCESS
-  // =========================
-  if (resultCode === 0) {
-    await Payment.findOneAndUpdate(
-      { orderId },
-      {
-        status: "success",
-        transactionId: transId,
-      },
-    );
-
-    order.paymentStatus = "paid";
-    order.status = "processing";
-    order.paidAt = new Date();
-
-    await order.save();
-  }
-
-  // =========================
-  // FAILED
-  // =========================
-  else {
-    await Payment.findOneAndUpdate(
-      { orderId },
-      {
-        status: "failed",
-      },
+  // confirm stock luôn vì khách đã đặt hàng
+  for (const item of items) {
+    await inventoryService.confirmStock(
+      item.variantId,
+      item.quantity
     );
   }
 
-  return true;
+  const payment = await Payment.create({
+    orderId,
+    method: "cod",
+    status: "pending",
+    amount: order.totalPrice,
+  });
+
+  order.paymentMethod = "COD";
+  order.status = "processing";
+  order.paymentStatus = "unpaid";
+
+  await order.save();
+
+  return payment;
 };

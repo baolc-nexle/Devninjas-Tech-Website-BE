@@ -1,4 +1,5 @@
 import * as ProductService from "../services/ProductService.js";
+import mongoose from "mongoose";
 
 // GET ALL
 export const getAllProducts = async (req, res) => {
@@ -18,20 +19,68 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-// GET BY ID
+export const getHomePageData = async (req, res) => {
+  try {
+    // Chạy song song 3 truy vấn để tăng tốc độ phản hồi
+    const [newProducts, featuredProducts, bestSellers] = await Promise.all([
+      ProductService.getNewProducts(4),
+      ProductService.getFeaturedProducts(4),
+      ProductService.getBestSellerProducts(4)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Get home page data successfully",
+      data: {
+        newProducts,
+        featuredProducts,
+        bestSellers
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const getProductById = async (req, res) => {
   try {
-    const product = await ProductService.getProductById(req.params.id);
+    const { id } = req.params;
 
+    // 1. Kiểm tra xem ID có đúng định dạng MongoDB ObjectId không
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "ID sản phẩm không đúng định dạng",
+      });
+    }
+
+    // 2. Gọi service
+    const product = await ProductService.getProductById(id);
+
+    // 3. Xử lý trường hợp không tìm thấy sản phẩm
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sản phẩm với ID này",
+      });
+    }
+
+    // 4. Phản hồi thành công
     return res.status(200).json({
       success: true,
       message: "Get product successfully",
       data: product,
     });
   } catch (error) {
-    return res.status(400).json({
+    // Log lỗi để bạn biết server đang bị gì
+    console.error("Lỗi tại getProductById:", error);
+    
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Lỗi hệ thống: " + error.message,
     });
   }
 };
@@ -58,6 +107,7 @@ export const createProduct = async (req, res) => {
       status: req.body.status || "Active",
       slug: slug, // BẮT BUỘC CÓ
       categoryId: req.body.categoryId, // BẮT BUỘC CÓ
+      brandId: req.body.brandId, // <--- THÊM DÒNG NÀY VÀO
       image: req.file ? `${req.file.filename}` : "",
       isFeatured: req.body.isFeatured === "true", // Chuyển từ string "true" của FormData sang Boolean
     };
@@ -83,15 +133,17 @@ export const createProduct = async (req, res) => {
 // UPDATE
 export const updateProduct = async (req, res) => {
   try {
-    const slug =
-      req.body.slug ||
-      req.body.name
+
+    // SỬA ĐOẠN NÀY:
+    const name = req.body.name || ""; // Nếu không có name thì dùng chuỗi rỗng
+
+    const slug = req.body.slug || (name ? name
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^\w\s-]/g, "")
         .replace(/[\s_-]+/g, "-")
-        .trim();
+        .trim() : ""); // Nếu name rỗng thì slug rỗng
 
     const newData = {
       name: req.body.name,
@@ -135,6 +187,65 @@ export const deleteProduct = async (req, res) => {
       success: true,
       message: "Delete product successfully",
       data: deletedProduct,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// export const getProductsByCategory = async (req, res) => {
+//   try {
+//     // Lấy categoryId từ URL params (ví dụ: /api/products/category/:categoryId)
+    
+//     const { categoryId } = req.params;
+    
+//     // Lấy page và limit từ query params (ví dụ: ?page=1&limit=8)
+//     // Nếu không có thì mặc định page = 1, limit = 8
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 8;
+
+//     const result = await ProductService.getProductsByCategory(categoryId, limit, page);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Lấy danh sách sản phẩm theo danh mục thành công",
+//       data: result, // result chứa: products, totalProducts, totalPages, currentPage
+//     });
+//   } catch (error) {
+//     return res.status(400).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
+
+export const getProductsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    
+    // 1. Lấy pagination từ query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+
+    // 2. Lấy filters từ query (nếu không có thì để rỗng)
+    const filters = {
+      minPrice: req.query.minPrice || null,
+      maxPrice: req.query.maxPrice || null,
+      // Chuyển chuỗi "id1,id2,id3" thành mảng ["id1", "id2", "id3"]
+      attributeValueIds: req.query.attrIds ? req.query.attrIds.split(',') : []
+    };
+
+    // 3. Gọi Service với tham số mới
+    const result = await ProductService.getProductsByCategory(categoryId, limit, page, filters);
+
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách sản phẩm theo danh mục thành công",
+      data: result,
     });
   } catch (error) {
     return res.status(400).json({

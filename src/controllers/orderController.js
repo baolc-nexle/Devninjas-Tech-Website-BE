@@ -1,15 +1,34 @@
 import * as orderService from "../services/orderService.js";
+import * as paymentService from "../services/paymentService.js";
 
 export const createOrderFromCart = async (req, res) => {
   try {
-    const userId = req.user.id; // từ auth middleware
+    const userId = req.user.id;
+    const { paymentMethod } = req.body; // Lấy phương thức thanh toán từ FE
 
-    const order = await orderService.createOrderFromCart(userId);
+    // 1. Tạo đơn hàng thông qua service (Service của bạn đã xử lý lưu DB)
+    const order = await orderService.createOrderFromCart(userId, req.body);
 
+    // 2. Xử lý thanh toán dựa trên phương thức
+    if (paymentMethod === "stripe") {
+      // Gọi service tạo Stripe Session (Bạn cần viết service này)
+      const sessionUrl = await paymentService.createStripeCheckoutSession(order._id);
+      
+      return res.status(201).json({
+        success: true,
+        message: "Đơn hàng đã tạo, đang chuyển hướng thanh toán Stripe",
+        data: order,
+        url: sessionUrl, // Trả URL về cho FE chuyển hướng
+      });
+    }
+
+    // 3. Nếu là COD
     res.status(201).json({
       success: true,
+      message: "Đặt hàng thành công với phương thức COD",
       data: order,
     });
+
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -21,9 +40,16 @@ export const createOrderFromCart = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { newStatus } = req.body;
+    // Bạn lấy dữ liệu vào bằng 'newStatus'
+    const { status } = req.body; 
 
-    const order = await orderService.updateOrderStatus(orderId, newStatus);
+    console.log("DEBUG TRƯỚC KHI GỌI HÀM:");
+    console.log("ID:", orderId);
+    // Phải log đúng biến bạn vừa khai báo là 'newStatus'
+    console.log("Status:", status); 
+
+    // Truyền đúng biến 'newStatus' vào đây
+    const order = await orderService.updateOrderStatus(orderId, status);
 
     res.json({
       success: true,
@@ -41,8 +67,9 @@ export const cancelOrder = async (req, res) => {
   try {
     const userId = req.user.id;
     const { orderId } = req.params;
+    const { reason } = req.body; // Lấy lý do từ phía người dùng gửi lên
 
-    const order = await orderService.cancelOrder(userId, orderId);
+    const order = await orderService.cancelOrder(userId, orderId, reason);
 
     res.json({
       success: true,
@@ -108,3 +135,15 @@ export const getAllOrders = async (req, res) => {
     });
   }
 };
+
+export const updateOrderController = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updatedOrder = await orderService.updateOrder(orderId, req.body);
+    res.status(200).json({ success: true, data: updatedOrder });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+

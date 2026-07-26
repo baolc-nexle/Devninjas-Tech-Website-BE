@@ -22,6 +22,8 @@ const productSchema = new mongoose.Schema(
       min: 0,
     },
 
+    soldCount: { type: Number, default: 0 }, // Cần thiết cho mục "Bán chạy"
+
     image: {
       type: String,
       default: "",
@@ -55,11 +57,26 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
-    // brandId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Brand",
-    //   required: true,
-    // },
+    brandId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Brand",
+      required: true,
+    },
+
+    isDeleted: { type: Boolean, default: false },
+
+    // --- THÊM PHẦN THÔNG SỐ KỸ THUẬT VÀO ĐÂY ---
+    specifications: {
+      type: Map,
+      of: String,
+      default: {}
+    },
+
+    // THÊM ĐOẠN NÀY VÀO SCHEMA CỦA PRODUCT
+    variants: [{ 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'ProductVariant' // Tên này phải trùng với tên model trong file models/Variant.js
+    }]
   },
   {
     timestamps: true,

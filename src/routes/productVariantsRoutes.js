@@ -7,7 +7,7 @@ const uploadVariant = createUploader("variants");
 // create variant
 router.post(
   "/",
-  uploadVariant.single("image"),
+  uploadVariant.any(),
   productVariantController.createVariant,
 );
 
@@ -27,7 +27,7 @@ router.get(
 // update variant
 router.put(
   "/:variantId",
-  uploadVariant.single("image"),
+  uploadVariant.any(),
   productVariantController.updateVariant,
 );
 

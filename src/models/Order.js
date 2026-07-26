@@ -13,6 +13,43 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
 
+    receiverName: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+
+    receiverPhone: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+
+    receiverEmail: {
+      type: String,
+      required: false,
+      trim: true,
+      lowercase: true,
+    },
+
+    province: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+
+    ward: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+
+    address: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+
     // 🔥 NEW: voucher đã dùng
     voucherId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -41,13 +78,20 @@ const orderSchema = new mongoose.Schema(
         "shipping",
         "delivered",
         "cancelled",
+        "draft",
       ],
       default: "pending",
     },
 
     paymentMethod: {
       type: String,
-      default: "COD",
+      enum: ["cod", "stripe"], // Giới hạn chỉ được chọn 2 loại này
+      required: true,
+    },
+
+    cancelReason: {
+      type: String,
+      default: null,
     },
 
     // 🔥 nên thêm
@@ -73,5 +117,13 @@ const orderSchema = new mongoose.Schema(
 );
 
 const Order = mongoose.model("Order", orderSchema);
+
+// Thêm đoạn này trước khi export model Order
+orderSchema.index({ 
+  orderCode: 'text', 
+  receiverName: 'text', 
+  receiverPhone: 'text', 
+  receiverEmail: 'text' 
+});
 
 export default Order;

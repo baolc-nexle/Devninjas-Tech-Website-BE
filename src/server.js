@@ -15,6 +15,17 @@ import stockRoutes from "./routes/stockRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import brandRoutes from "./routes/brandRoutes.js";
+import attributeRoutes from "./routes/attributeRoutes.js";
+import attributeValueRoutes from "./routes/attributeValueRoutes.js";
+import bannerRoutes from "./routes/bannerRoutes.js";
+import flashSaleRoutes from "./routes/flashSaleRoute.js";
+import flashSaleItemRoutes from "./routes/flashSaleItemRoutes.js";
+import categoryAttributeRoutes from "./routes/categoryAttributeRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import voucherRoutes from "./routes/voucherRoutes.js";
+import ratingRoutes from "./routes/ratingRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
 dotenv.config();
 
 // 3. Cấu hình __dirname cho ES Modules (Bắt buộc)
@@ -27,7 +38,7 @@ connectDB();
 const app = express();
 
 // middleware
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors({ origin: "http://localhost:3000" , credentials: true}));
 app.use(cookieParser());
 
 // webhook riêng (KHÔNG qua router payments)
@@ -63,6 +74,17 @@ app.use("/api/variants", productVariantsRoutes);
 app.use("/api/stock", stockRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/brands", brandRoutes);
+app.use("/api/attributes", attributeRoutes);
+app.use("/api/attributeValues", attributeValueRoutes);
+app.use("/api/banners", bannerRoutes);
+app.use("/api/flashSales", flashSaleRoutes);
+app.use("/api/flashSaleItems", flashSaleItemRoutes);
+app.use("/api/category-attributes", categoryAttributeRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/vouchers", voucherRoutes);
+app.use("/api/ratings", ratingRoutes);
+app.use("/api/addresses", addressRoutes);
 
 // port
 const PORT = process.env.PORT || 5000;

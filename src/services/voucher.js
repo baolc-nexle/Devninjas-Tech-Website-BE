@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import Voucher from "../models/Voucher";
-import Order from "../models/Order";
-import VoucherUsage from "../models/VoucherUsage";
+import Voucher from "../models/Voucher.js";
+import Order from "../models/Order.js";
+import VoucherUsage from "../models/VoucherUsage.js";
 
 const validateId = async (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -66,6 +66,12 @@ export const validateVoucher = async (voucherCode, orderId, userId) => {
 
   if (!voucher) {
     throw new Error("Voucher không tồn tại");
+  }
+
+  // --- THÊM VÀO ĐÂY ---
+  const alreadyUsed = await VoucherUsage.findOne({ voucherId: voucher._id, userId });
+  if (alreadyUsed) {
+    throw new Error("Bạn đã sử dụng voucher này rồi");
   }
 
   // 2. Các kiểm tra cơ bản về trạng thái voucher
@@ -243,3 +249,22 @@ export const finalizeVoucher = async (voucherId, orderId, userId) => {
 
   return { message: "Voucher đã được sử dụng" };
 };
+
+export const getAvailableVouchers = async (orderValue) => {
+  const now = new Date();
+  
+  // Lấy các voucher còn hạn, còn lượt, và thỏa mãn minOrderValue
+  const vouchers = await Voucher.find({
+    isActive: true,
+    startDate: { $lte: now },
+    endDate: { $gte: now },
+    $or: [
+      { usageLimit: 0 },
+      { $expr: { $lt: ["$usedCount", "$usageLimit"] } }
+    ],
+    minOrderValue: { $lte: orderValue || 0 }
+  }).sort({ createdAt: -1 }); // Lấy mới nhất lên trước
+
+  return vouchers;
+};
+

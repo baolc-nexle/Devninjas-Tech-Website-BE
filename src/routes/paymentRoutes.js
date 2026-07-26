@@ -19,10 +19,12 @@ router.post(
   express.raw({ type: "application/json" }),
   paymentController.stripeWebhook,
 );
-// =========================
-// MOMO
-// =========================
-router.post("/momo/create", paymentController.createMomoPayment);
-router.post("/momo/webhook", paymentController.momoWebhook);
+
+router.post(
+  "/cod",
+  
+  paymentController.checkoutCOD
+);
+
 
 export default router;

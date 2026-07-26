@@ -3,186 +3,168 @@ import Product from "../models/Product.js";
 import mongoose from "mongoose";
 
 export const createVariant = async (data) => {
+  // data đã bao gồm 'attributes' là mảng các object: [{attributeValueId: "..."}]
   let { productId, sku, price, stock, attributes, ...rest } = data;
 
-  // ✅ Sửa lỗi trim(): Kiểm tra sku có tồn tại không trước khi trim
-  if (!sku) {
-    throw new Error("Mã SKU là bắt buộc");
-  }
+  // 1. Validate dữ liệu cơ bản
+  if (!sku) throw new Error("Mã SKU là bắt buộc");
   sku = sku.trim().toUpperCase();
 
-  // ✅ Kiểm tra productId
   if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
     throw new Error("productId không hợp lệ");
   }
 
+  // 2. Validate attributes
+  if (!Array.isArray(attributes) || attributes.length === 0) {
+    throw new Error("Biến thể phải có ít nhất một thuộc tính");
+  }
+
+  // 3. Kiểm tra trùng lặp cấu hình (Cải tiến)
+  const attributeIds = attributes.map(a => a.attributeValueId);
+  
+  // Thêm điều kiện $size để đảm bảo tổ hợp thuộc tính là DUY NHẤT 
+  // (Ví dụ: biến thể 2 thuộc tính không được trùng với biến thể có 3 thuộc tính mà chứa 2 cái kia)
+  const existVariant = await ProductVariant.findOne({
+    productId,
+    "attributes": { 
+        $all: attributes.map(a => ({ attributeValueId: a.attributeValueId })),
+        $size: attributes.length 
+    }
+  });
+
+  if (existVariant) {
+    throw new Error("Sản phẩm này đã có biến thể với cấu hình này rồi!");
+  }
+
   const product = await Product.findById(productId);
-  if (!product) {
-    throw new Error("Sản phẩm không tồn tại");
-  }
+  if (!product) throw new Error("Sản phẩm không tồn tại");
 
-  // ✅ Kiểm tra trùng SKU
   const existSku = await ProductVariant.findOne({ sku });
-  if (existSku) {
-    throw new Error("Mã SKU này đã tồn tại trên hệ thống");
-  }
+  if (existSku) throw new Error("Mã SKU này đã tồn tại");
 
-  // ✅ Ép kiểu số (Vì FormData gửi số dưới dạng chuỗi)
   const numPrice = Number(price);
   const numStock = Number(stock);
 
-  if (isNaN(numPrice) || numPrice <= 0) {
-    throw new Error("Giá bán phải là số và lớn hơn 0");
-  }
+  if (isNaN(numPrice) || numPrice <= 0) throw new Error("Giá bán không hợp lệ");
+  if (isNaN(numStock) || numStock < 0) throw new Error("Tồn kho không hợp lệ");
 
-  if (isNaN(numStock) || numStock < 0) {
-    throw new Error("Số lượng tồn kho không hợp lệ");
-  }
-
-  // ✅ Tạo biến thể
+  // 4. Tạo mới
   const variant = await ProductVariant.create({
     productId,
     sku,
     price: numPrice,
     stock: numStock,
-    attributes, // Controller cần đảm bảo cái này đã được JSON.parse
+    attributes: attributes, 
     ...rest,
   });
+
+  if (variant) {
+    await Product.findByIdAndUpdate(productId, {
+      $push: { variants: variant._id }
+    });
+  }
 
   return variant;
 };
 
 export const getVariantsByProduct = async (productId) => {
-  // 1. validate productId
   if (!mongoose.Types.ObjectId.isValid(productId)) {
     throw new Error("productId không hợp lệ");
   }
 
-  // 2. check exist product
-  const product = await Product.findById(productId);
-
-  // 3. get variants
-  const variants = await ProductVariant.find({
-    productId,
-  });
-
-  console.log("Số lượng biến thể tìm thấy tại Service:", variants.length);
-  console.log("Dữ liệu biến thể:", variants);
-
-  return variants;
+ // Populate sâu tương tự như getVariantById
+  return await ProductVariant.find({ productId, isActive: true })
+    .populate({
+      path: "attributes.attributeValueId",
+      populate: { path: "attributeId" } // Populate để lấy được name ("Màu sắc", "Dung lượng")
+    });
 };
 
 export const getVariantById = async (variantId) => {
-  // 1. validate productId
   if (!mongoose.Types.ObjectId.isValid(variantId)) {
     throw new Error("variantId không hợp lệ");
   }
 
-  // 2. find variant và populate productId lấy dữ liệu
-  const variant =
-    await ProductVariant.findById(variantId).populate("productId");
+  const variant = await ProductVariant.findById(variantId)
+    .populate("productId")
+    .populate({
+      path: "attributes.attributeValueId",
+      populate: { path: "attributeId" } // Populate thêm để lấy tên thuộc tính (Màu/Dung lượng)
+    });
 
-  if (!variant) {
-    throw new Error("variant không tồn tại");
-  }
+  if (!variant) throw new Error("variant không tồn tại");
 
   return variant;
 };
 
 export const updateVariant = async (variantId, data) => {
-  // 1. validate id
-  if (!mongoose.Types.ObjectId.isValid(variantId)) {
-    throw new Error("variantId không hợp lệ");
+  // 1. TRÍCH XUẤT DỮ LIỆU ĐÚNG TỪ MẢNG VARIANTS
+  // Kiểm tra nếu 'data' có mảng 'variants', lấy phần tử đầu tiên
+  const actualData = (data.variants && Array.isArray(data.variants)) 
+    ? data.variants[0] 
+    : data;
+
+  console.log("DEBUG - Dữ liệu sau khi trích xuất:", actualData);
+
+  if (!mongoose.Types.ObjectId.isValid(variantId)) throw new Error("variantId không hợp lệ");
+
+  const updatePayload = {};
+
+  // 2. SỬ DỤNG 'actualData' ĐỂ GÁN VÀO PAYLOAD
+  if (actualData.sku !== undefined) updatePayload.sku = String(actualData.sku).trim().toUpperCase();
+  if (actualData.price !== undefined) updatePayload.price = Number(actualData.price);
+  if (actualData.stock !== undefined) updatePayload.stock = Number(actualData.stock);
+  if (actualData.isDefault !== undefined) {
+    updatePayload.isDefault = actualData.isDefault === 'true' || actualData.isDefault === true;
   }
+  
+  if (actualData.image) updatePayload.image = actualData.image;
+  if (actualData.existingImage) updatePayload.image = actualData.existingImage;
 
-  // 2. find variant
-  const variant = await ProductVariant.findById(variantId);
-
-  if (!variant) {
-    throw new Error("Variant không tồn tại");
-  }
-
-  // 3. không cho update product
-  if (data.productId) {
-    delete data.productId;
-  }
-
-  // 4. normalize SKU nếu có
-  if (data.sku) {
-    data.sku = data.sku.trim().toUpperCase();
-
-    const existSku = await ProductVariant.findOne({
-      sku: data.sku,
-      _id: { $ne: variantId },
-    });
-
-    if (existSku) {
-      throw new Error("SKU đã tồn tại");
+  if (actualData.attributes) {
+    try {
+      updatePayload.attributes = typeof actualData.attributes === 'string' 
+        ? JSON.parse(actualData.attributes) 
+        : actualData.attributes;
+    } catch (e) {
+      console.error("Lỗi parse attributes:", e);
     }
   }
 
-  // 5. validate price nếu có
-  if (data.price !== undefined && data.price <= 0) {
-    throw new Error("Giá không hợp lệ");
-  }
+  console.log("DEBUG - Payload cuối cùng:", updatePayload);
 
-  // 6. validate stock nếu có
-  if (data.stock !== undefined && data.stock < 0) {
-    throw new Error("Stock không hợp lệ");
-  }
+  const updatedVariant = await ProductVariant.findOneAndUpdate(
+    { _id: variantId },
+    { $set: updatePayload },
+    { returnDocument: 'after', runValidators: true }
+  );
 
-  // 7. update
-  Object.assign(variant, data);
+  if (!updatedVariant) throw new Error("Variant không tồn tại");
 
-  await variant.save();
-
-  return variant;
+  return updatedVariant;
 };
 
 export const deleteVariant = async (variantId) => {
-  if (!mongoose.Types.ObjectId.isValid(variantId)) {
-    throw new Error("variantId không hợp lệ");
-  }
+  if (!mongoose.Types.ObjectId.isValid(variantId)) throw new Error("variantId không hợp lệ");
 
   const variant = await ProductVariant.findById(variantId);
+  if (!variant) throw new Error("Variant không tồn tại");
 
-  if (!variant) {
-    throw new Error("Variant không tồn tại");
-  }
-
-  // soft delete
   variant.isActive = false;
-
   await variant.save();
 
   return variant;
 };
 
-// Thêm hàm này vào cùng file service của bạn
 export const syncVariants = async (productId, variantsData) => {
   const results = [];
-
   for (const item of variantsData) {
-    // KIỂM TRA: Nếu có _id hợp lệ thì mới gọi logic update cũ của bạn
     if (item._id && mongoose.Types.ObjectId.isValid(item._id)) {
-      const updated = await updateVariant(item._id, item);
-      results.push(updated);
-    }
-    // TRƯỜNG HỢP: Biến thể mới (không có _id hoặc _id không hợp lệ)
-    else {
-      // Ở đây bạn có thể gọi hàm createVariant của mình hoặc logic tạo mới
-      const { _id, ...createData } = item; // Loại bỏ ID tạm từ frontend nếu có
-
-      // Validate sơ bộ cho biến thể mới trước khi lưu
-      if (!createData.sku) throw new Error("Biến thể mới bắt buộc phải có SKU");
-
-      const newVariant = await ProductVariant.create({
-        ...createData,
-        productId: productId, // Gắn ID sản phẩm cha
-      });
-      results.push(newVariant);
+      results.push(await updateVariant(item._id, item));
+    } else {
+      const { _id, ...createData } = item;
+      results.push(await createVariant({ ...createData, productId }));
     }
   }
-
   return results;
 };

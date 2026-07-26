@@ -1,6 +1,8 @@
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { sendEmail } from "../utils/sendEmail.js";
 
 export const register = async (data) => {
   // step 1: nhận dữ liệu từ request (thêm confirmPassword và agreeTerms)
@@ -85,6 +87,11 @@ export const login = async (data) => {
   // step 4: check user có tồn tại
   if (!user) {
     throw new Error("User không tồn tại");
+  }
+
+  // --- BỔ SUNG: Kiểm tra trạng thái Block ---
+  if (user.status === 'block') {
+    throw new Error("Tài khoản của bạn đã bị khóa, vui lòng liên hệ Admin!");
   }
 
   // step 5: so sánh password có khớp với password ở db
@@ -182,9 +189,98 @@ export const logout = async (id) => {
     throw new Error("User không tồn tại");
   }
 
+  // Cập nhật refreshToken về null
   user.refreshToken = null;
 
-  user.save();
+  // BỔ SUNG: Thêm await ở đây để đảm bảo lưu dữ liệu hoàn tất
+  await user.save(); 
 
   return true;
+};
+
+export const getMe = async (id) => {
+  const user = await User.findById(id).select("-password"); // .select("-password") là cách nhanh nhất để loại bỏ mật khẩu ngay từ truy vấn DB
+  
+  if (!user) {
+    throw new Error("User không tồn tại");
+  }
+
+  return user;
+};
+
+export const forgotPassword = async (email) => {
+  const user = await User.findOne({ email });
+  // Luôn trả về thông báo chung để bảo mật
+  if (!user) return { message: "Nếu email tồn tại, mã xác thực đã được gửi." };
+
+  // 1. Tạo mã OTP ngẫu nhiên 6 chữ số
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 2. Lưu OTP vào DB (Đảm bảo Schema của bạn đã có field resetPasswordOTP)
+  user.resetPasswordOTP = otp;
+  user.resetPasswordExpires = Date.now() + 5 * 60 * 1000; // Hết hạn sau 5 phút
+  await user.save();
+
+  // 3. Nội dung email chứa OTP
+  const htmlContent = `
+    <h2>Xác thực tài khoản</h2>
+    <p>Bạn đã yêu cầu đặt lại mật khẩu.</p>
+    <p>Mã xác thực của bạn là: <strong>${otp}</strong></p>
+    <p>Mã này có hiệu lực trong vòng 5 phút.</p>
+  `;
+
+  // 4. Gửi email
+  await sendEmail(user.email, "Mã xác thực đặt lại mật khẩu", htmlContent);
+
+  return { message: "Mã xác thực đã được gửi tới email của bạn." };
+};
+
+export const verifyOTP = async (email, otp) => {
+  const user = await User.findOne({ 
+    email, 
+    resetPasswordOTP: otp,
+    resetPasswordExpires: { $gt: Date.now() } // Kiểm tra thời hạn
+  });
+
+  if (!user) {
+    throw new Error("Mã OTP không đúng hoặc đã hết hạn.");
+  }
+
+  return { message: "Xác thực thành công. Vui lòng nhập mật khẩu mới." };
+};
+
+export const resetPassword = async (email, newPassword) => {
+  // Tìm user theo email
+  const user = await User.findOne({ email });
+  
+  // Kiểm tra nếu user không tồn tại hoặc đã mất dữ liệu OTP (tức là chưa qua Step 2)
+  if (!user || !user.resetPasswordOTP) {
+    throw new Error("Yêu cầu không hợp lệ. Vui lòng thực hiện xác thực OTP trước.");
+  }
+
+  // Cập nhật mật khẩu mới
+  user.password = await bcrypt.hash(newPassword, 10);
+
+  // Xóa OTP và thời hạn sau khi đổi xong để bảo mật
+  user.resetPasswordOTP = undefined;
+  user.resetPasswordExpires = undefined;
+
+  await user.save();
+  return { message: "Đổi mật khẩu thành công." };
+};
+
+export const changePassword = async (userId, oldPassword, newPassword) => {
+  // 1. Tìm user theo ID (lấy từ token đã đăng nhập)
+  const user = await User.findById(userId);
+  if (!user) throw new Error("Người dùng không tồn tại.");
+
+  // 2. Kiểm tra mật khẩu cũ
+  const isMatch = await bcrypt.compare(oldPassword, user.password);
+  if (!isMatch) throw new Error("Mật khẩu cũ không chính xác.");
+
+  // 3. Hash mật khẩu mới và lưu
+  user.password = await bcrypt.hash(newPassword, 10);
+  await user.save();
+
+  return { message: "Đổi mật khẩu thành công." };
 };
