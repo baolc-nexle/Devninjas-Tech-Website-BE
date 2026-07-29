@@ -26,6 +26,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import voucherRoutes from "./routes/voucherRoutes.js";
 import ratingRoutes from "./routes/ratingRoutes.js";
 import addressRoutes from "./routes/addressRoutes.js";
+import chatbotRoutes from "./routes/chatbotRoutes.js";
 dotenv.config();
 
 // 3. Cấu hình __dirname cho ES Modules (Bắt buộc)
@@ -85,6 +86,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/vouchers", voucherRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/chatbot", chatbotRoutes);
 
 // port
 const PORT = process.env.PORT || 5000;

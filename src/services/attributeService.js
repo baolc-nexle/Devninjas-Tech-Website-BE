@@ -12,15 +12,16 @@ export const createAttribute = async (data) => {
     name: name.trim(),
   });
 
+  // NẾU ĐÃ TỒN TẠI: Trả về luôn thông tin thuộc tính cũ thay vì báo lỗi
   if (existAttribute) {
-    throw new Error("Thuộc tính đã tồn tại");
+    return existAttribute; 
   }
 
+  // NẾU CHƯA: Tạo mới bình thường
   return await Attribute.create({
     name: name.trim(),
   });
 };
-
 export const getAllAttributes = async () => {
   return await Attribute.aggregate([
     // 1. Sắp xếp trước khi lookup để đảm bảo thứ tự createdAt

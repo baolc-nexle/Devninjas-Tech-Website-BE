@@ -66,11 +66,12 @@ const productSchema = new mongoose.Schema(
     isDeleted: { type: Boolean, default: false },
 
     // --- THÊM PHẦN THÔNG SỐ KỸ THUẬT VÀO ĐÂY ---
-    specifications: {
-      type: Map,
-      of: String,
-      default: {}
-    },
+   specifications: [
+      {
+        key: { type: String, required: true },   // Ví dụ: "Màn hình", "RAM", "CPU"
+        value: { type: String, required: true }  // Ví dụ: "6.7 inch", "8GB", "Apple M2"
+      }
+    ],
 
     // THÊM ĐOẠN NÀY VÀO SCHEMA CỦA PRODUCT
     variants: [{ 

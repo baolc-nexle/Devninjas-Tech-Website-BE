@@ -5,6 +5,7 @@ import Product from "../models/Product.js";
 import OrderDetail from "../models/OrderDetail.js";
 import * as stockService from "../services/stockService.js";
 import * as inventoryService from "../services/inventoryService.js";
+import { sendCancelOrderEmail } from "../utils/sendEmail.js";
 import mongoose from "mongoose";
 
 
@@ -212,8 +213,6 @@ export const createOrderFromCart = async (userId, orderData) => {
 //   return order;
 // };
 
-// done
-//new
 export const updateOrderStatus = async (orderId, newStatus, reason = null) => {
   // THỬ CƯỠNG BỨC GÁN GIÁ TRỊ TẠM THỜI ĐỂ TEST
   console.log("DEBUG: Giá trị newStatus nhận được là:", newStatus);
@@ -276,7 +275,17 @@ const validTransitions = {
     for (const item of items) {
       await inventoryService.releaseStock(item.variantId, item.quantity);
     }
-    order.cancelReason = reason;
+    
+    // Gán lý do hủy (nếu không có thì lấy giá trị mặc định)
+    order.cancelReason = reason || "Không có lý do cụ thể";
+
+    // 📩 GỬI EMAIL THÔNG BÁO HỦY ĐƠN CHO KHÁCH HÀNG
+    const customerEmail = order.receiverEmail; // Hoặc thuộc tính lưu email khách hàng trong DB của bạn
+    if (customerEmail) {
+      // Gọi bất đồng bộ (catch lỗi ngầm để không làm crash luồng chính nếu lỗi gửi mail)
+      sendCancelOrderEmail(customerEmail, order.orderCode || order._id, order.cancelReason)
+        .catch(err => console.error("Lỗi gửi mail hủy đơn:", err));
+    }
   }
 
   // Logic xác nhận kho khi giao hàng thành công
@@ -302,7 +311,6 @@ const validTransitions = {
   
   return order;
 };
-
 
 export const cancelOrder = async (userId, orderId, reason) => {
   // 1. validate id

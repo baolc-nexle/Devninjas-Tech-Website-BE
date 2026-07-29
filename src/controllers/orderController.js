@@ -40,16 +40,16 @@ export const createOrderFromCart = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    // Bạn lấy dữ liệu vào bằng 'newStatus'
-    const { status } = req.body; 
+    // 1. Lấy cả status và cancellation_reason từ req.body gửi lên từ frontend
+    const { status, cancellation_reason } = req.body; 
 
     console.log("DEBUG TRƯỚC KHI GỌI HÀM:");
     console.log("ID:", orderId);
-    // Phải log đúng biến bạn vừa khai báo là 'newStatus'
     console.log("Status:", status); 
+    console.log("Cancellation Reason:", cancellation_reason); 
 
-    // Truyền đúng biến 'newStatus' vào đây
-    const order = await orderService.updateOrderStatus(orderId, status);
+    // 2. Truyền thêm cancellation_reason vào tham số thứ 3 (reason) của service
+    const order = await orderService.updateOrderStatus(orderId, status, cancellation_reason);
 
     res.json({
       success: true,

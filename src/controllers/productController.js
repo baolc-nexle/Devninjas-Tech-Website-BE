@@ -99,17 +99,32 @@ export const createProduct = async (req, res) => {
         .replace(/[\s_-]+/g, "-")
         .trim();
 
+    // 2. Xử lý parse trường specifications từ chuỗi JSON (do FormData gửi lên)
+    let parsedSpecifications = [];
+    if (req.body.specifications) {
+      try {
+        // Nếu client gửi dạng JSON string thì parse, nếu đã là object/array thì giữ nguyên
+        parsedSpecifications = typeof req.body.specifications === "string" 
+          ? JSON.parse(req.body.specifications) 
+          : req.body.specifications;
+      } catch (err) {
+        console.error("Lỗi parse specifications:", err);
+        parsedSpecifications = [];
+      }
+    }
+
     const productData = {
       name: req.body.name,
       basePrice: Number(req.body.basePrice),
-      stock: Number(req.body.stock) || 0, // // Ép kiểu số để chắc chắn khớp Schema
+      stock: Number(req.body.stock) || 0, // Ép kiểu số để chắc chắn khớp Schema
       description: req.body.description,
       status: req.body.status || "Active",
       slug: slug, // BẮT BUỘC CÓ
       categoryId: req.body.categoryId, // BẮT BUỘC CÓ
-      brandId: req.body.brandId, // <--- THÊM DÒNG NÀY VÀO
+      brandId: req.body.brandId, 
       image: req.file ? `${req.file.filename}` : "",
-      isFeatured: req.body.isFeatured === "true", // Chuyển từ string "true" của FormData sang Boolean
+      isFeatured: req.body.isFeatured === "true" || req.body.isFeatured === true, // Xử lý cả boolean lẫn string "true"
+      specifications: parsedSpecifications, // <--- BỔ SUNG TRƯỜNG NÀY VÀO
     };
 
     const newProduct = await ProductService.createProduct(productData);
