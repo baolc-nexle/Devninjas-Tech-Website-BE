@@ -34,7 +34,12 @@ const voucherSchema = new mongoose.Schema(
 
     usageLimit: {
       type: Number,
-      default: 0, // 0 = unlimited
+      default: 1, // 0 = unlimited
+    },
+
+    usageLimitPerUser: {
+      type: Number,
+      default: 1,
     },
 
     usedCount: {
@@ -56,6 +61,23 @@ const voucherSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    name: {
+        type: String,
+        required: true,
+    },
+
+    description: {
+        type: String,
+        default: "",
+    },
+
+    applyTo: {
+        type: String,
+        enum: ["all_products", "categories", "vip_users"],
+        default: "all_products",
+    },
+
   },
   {
     timestamps: true,
