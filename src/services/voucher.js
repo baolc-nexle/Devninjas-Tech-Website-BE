@@ -11,15 +11,20 @@ const validateId = async (id) => {
 
 export const createVoucher = async (data) => {
   const {
-    code,
-    type,
-    value,
-    minOrderValue,
-    maxDiscount,
-    usageLimit,
-    usedCount,
-    startDate,
-    endDate,
+      code,
+      name,
+      description,
+      type,
+      value,
+      minOrderValue,
+      maxDiscount,
+      usageLimit,
+      usageLimitPerUser,
+      applyTo,
+      usedCount,
+      startDate,
+      endDate,
+      isActive,
   } = data;
 
   if (!code || !value || !type || !startDate || !endDate) {
@@ -43,15 +48,20 @@ export const createVoucher = async (data) => {
   }
 
   const voucher = await Voucher.create({
-    code: code.toUpperCase().trim(),
-    type,
-    value,
-    minOrderValue: minOrderValue || 0,
-    maxDiscount,
-    usageLimit: usageLimit || 0,
-    usedCount,
-    startDate,
-    endDate,
+      code: code.toUpperCase().trim(),
+      name,
+      description,
+      type,
+      value,
+      minOrderValue: minOrderValue || 0,
+      maxDiscount,
+      usageLimit: usageLimit || 0,
+      usageLimitPerUser,
+      applyTo,
+      usedCount,
+      startDate,
+      endDate,
+      isActive,
   });
 
   return voucher;
@@ -69,9 +79,16 @@ export const validateVoucher = async (voucherCode, orderId, userId) => {
   }
 
   // --- THÊM VÀO ĐÂY ---
-  const alreadyUsed = await VoucherUsage.findOne({ voucherId: voucher._id, userId });
-  if (alreadyUsed) {
-    throw new Error("Bạn đã sử dụng voucher này rồi");
+  const usedCount = await VoucherUsage.countDocuments({
+      voucherId: voucher._id,
+      userId,
+  });
+
+  if (
+      voucher.usageLimitPerUser > 0 &&
+      usedCount >= voucher.usageLimitPerUser
+  ) {
+      throw new Error("Bạn đã sử dụng hết số lượt của voucher này");
   }
 
   // 2. Các kiểm tra cơ bản về trạng thái voucher
@@ -146,7 +163,13 @@ export const applyVoucher = async (voucherCode, orderId, userId) => {
   discount = Math.min(discount, basePrice);
 
   await reserveVoucher(voucher._id);
-
+    // Lưu lịch sử user đã dùng voucher
+  await VoucherUsage.create({
+    voucherId: voucher._id,
+    userId,
+    orderId,
+    usedAt: new Date(),
+  });
   // update order
   order.voucherId = voucher._id;
   order.discount = discount;
@@ -268,3 +291,16 @@ export const getAvailableVouchers = async (orderValue) => {
   return vouchers;
 };
 
+export const getAllVouchers = async () => {
+    return await Voucher.find().sort({ createdAt: -1 });
+};
+
+export const updateVoucher = async (id, data) => {
+    return await Voucher.findByIdAndUpdate(id, data, {
+        new: true,
+    });
+};
+
+export const deleteVoucher = async (id) => {
+    return await Voucher.findByIdAndDelete(id);
+};

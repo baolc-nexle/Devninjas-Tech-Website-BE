@@ -7,6 +7,9 @@ const router = express.Router();
 
 // Route cho Admin
 router.post("/", VoucherController.createVoucher); 
+router.get("/", VoucherController.getAllVouchers);
+router.put("/:id", VoucherController.updateVoucher);
+router.delete("/:id", VoucherController.deleteVoucher);
 
 // Route cho User
 router.post("/validate", authMiddleWare, VoucherController.validateVoucher);

@@ -6,6 +6,7 @@ import * as stockService from "../services/stockService.js";
 import * as inventoryService from "../services/inventoryService.js";
 import * as crypto from "crypto";
 import axios from "axios";
+import { finalizeVoucher } from "./voucher.js";
 
 // checkout gateway Stripe for international
 
@@ -152,7 +153,13 @@ export const handleStripeWebhook = async (rawBody, headers) => {
     order.paidAt = new Date();
 
     await order.save();
-
+    if (order.voucherId) {
+      await finalizeVoucher(
+        order.voucherId,
+        order._id,
+        order.userId
+      );
+    }
     console.log("🎉 ORDER UPDATED SUCCESS:", order.orderCode);
   } catch (err) {
     console.error("❌ WEBHOOK PROCESS ERROR:", err.message);

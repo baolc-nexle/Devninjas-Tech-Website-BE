@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 import Brand from "../models/brand.js";
 
 export const createBrand = async (data) => {
-  if (!data) {
-    throw new Error("Dữ liệu không được để trống");
-  }
+  // if (!data) {
+  //   throw new Error("Dữ liệu không được để trống");
+  // }
 
   const existBrand = await Brand.findOne({ name: data.name });
 

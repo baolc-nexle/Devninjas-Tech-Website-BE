@@ -10,6 +10,57 @@ export const createVoucher = async (req, res) => {
   }
 };
 
+export const getAllVouchers = async (req, res) => {
+    try {
+        const vouchers = await VoucherService.getAllVouchers();
+
+        res.status(200).json({
+            success: true,
+            data: vouchers,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+export const updateVoucher = async (req, res) => {
+    try {
+        const voucher = await VoucherService.updateVoucher(
+            req.params.id,
+            req.body
+        );
+
+        res.json({
+            success: true,
+            data: voucher,
+        });
+    } catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+export const deleteVoucher = async (req, res) => {
+    try {
+        await VoucherService.deleteVoucher(req.params.id);
+
+        res.json({
+            success: true,
+            message: "Xóa thành công",
+        });
+    } catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
 // 2. User: Kiểm tra mã (Validate)
 export const validateVoucher = async (req, res) => {
   try {
