@@ -47,18 +47,42 @@ export const getDashboardChart = async (req, res, next) => {
   }
 };
 
+// export const getCategoryStats = async (req, res) => {
+//   try {
+//     // Lấy khoảng thời gian từ query params (định dạng: ?startDate=...&endDate=...)
+//     const { startDate, endDate } = req.query;
+
+//     // Chuyển đổi sang Date object để service xử lý
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     const result = await dashboardService.getCategoryStats(start, end);
+
+//     console.log("Kết quả từ Service:", result);
+    
+//     res.status(200).json({ success: true, data: result.data });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
 export const getCategoryStats = async (req, res) => {
   try {
-    // Lấy khoảng thời gian từ query params (định dạng: ?startDate=...&endDate=...)
     const { startDate, endDate } = req.query;
 
-    // Chuyển đổi sang Date object để service xử lý
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = startDate && !isNaN(Date.parse(startDate))
+      ? new Date(startDate)
+      : new Date(new Date().setDate(new Date().getDate() - 30));
+
+    const end = endDate && !isNaN(Date.parse(endDate))
+      ? new Date(endDate)
+      : new Date();
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new Error("Ngày tháng không hợp lệ. Vui lòng kiểm tra lại định dạng truyền từ Frontend.");
+    }
 
     const result = await dashboardService.getCategoryStats(start, end);
-
-    console.log("Kết quả từ Service:", result);
     
     res.status(200).json({ success: true, data: result.data });
   } catch (error) {

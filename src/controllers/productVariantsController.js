@@ -1,26 +1,126 @@
 import * as productVariantService from "../services/productVariantService.js";
 import mongoose from "mongoose";
-export const createVariant = async (req, res) => {
-  // 1. Kiểm tra toàn bộ body (text fields)
-  console.log("--- Body nhận được ---");
-  console.log(JSON.stringify(req.body, null, 2));
+// export const createVariant = async (req, res) => {
+//   // 1. Kiểm tra toàn bộ body (text fields)
+//   console.log("--- Body nhận được ---");
+//   console.log(JSON.stringify(req.body, null, 2));
 
-  // 2. Kiểm tra danh sách file nhận được
-  console.log("--- Files nhận được ---");
-  console.log(req.files); // Nếu dùng upload.any() hoặc upload.fields()
-  console.log(req.file);  // Nếu dùng upload.single()
+//   // 2. Kiểm tra danh sách file nhận được
+//   console.log("--- Files nhận được ---");
+//   console.log(req.files); // Nếu dùng upload.any() hoặc upload.fields()
+//   console.log(req.file);  // Nếu dùng upload.single()
+//   try {
+//     // 1. Lấy danh sách biến thể (hoặc tạo mảng chứa 1 phần tử nếu chỉ có dữ liệu đơn)
+//     const variantsList = Array.isArray(req.body.variants) 
+//       ? req.body.variants 
+//       : [{ ...req.body }]; // Fallback nếu không phải mảng variants
+
+//     // Xử lý tất cả các biến thể
+//     const createdVariants = await Promise.all(variantsList.map(async (v, index) => {
+//       // Clone dữ liệu từ phần tử trong mảng
+//       let variantData = { ...v, productId: req.body.productId };
+
+//       // 2. Xử lý logic attributes
+//       if (variantData.attributeValueIds) {
+//         if (typeof variantData.attributeValueIds === "string") {
+//           try {
+//             variantData.attributeValueIds = JSON.parse(variantData.attributeValueIds);
+//           } catch (e) {
+//             throw new Error("attributeValueIds không đúng định dạng");
+//           }
+//         }
+//       } else if (variantData.attributes) {
+//         variantData.attributeValueIds = variantData.attributes;
+//       }
+
+//      // 3. Xử lý ảnh chính và nhiều ảnh biến thể từ req.files dựa theo index của biến thể
+//      if (req.files && req.files.length > 0) {
+//        // A. Lọc và lấy ảnh chính (Dựa vào fieldname chuẩn gửi từ frontend: variants[index][image])
+//        const mainImageFile = req.files.find(f => f.fieldname === `variants[${index}][image]`);
+//        if (mainImageFile) {
+//          variantData.image = mainImageFile.path || mainImageFile.filename;
+//        } else {
+//          // Fallback cách cũ nếu dùng index thuần túy
+//          const fileIndex = parseInt(v.imageIndex); 
+//          const foundFile = !isNaN(fileIndex) ? req.files[fileIndex] : null;
+//          if (foundFile) {
+//            variantData.image = foundFile.path || foundFile.filename;
+//          }
+//        }
+
+//        // B. Lọc và lấy nhiều ảnh biến thể cho slider (Dựa vào fieldname: variants[index][images])
+//        const multiImageFiles = req.files.filter(f => f.fieldname === `variants[${index}][images]`);
+//        if (multiImageFiles && multiImageFiles.length > 0) {
+//          variantData.images = multiImageFiles.map(file => file.path || file.filename);
+//        } else {
+//          variantData.images = [];
+//        }
+//      } else {
+//        variantData.images = [];
+//      }
+
+//       // 4. Ép kiểu Number an toàn
+//       const numericFields = ["price", "stock", "compareAtPrice"];
+//       numericFields.forEach((field) => {
+//         if (variantData[field] !== undefined && variantData[field] !== "") {
+//           const parsedValue = Number(variantData[field]);
+//           variantData[field] = isNaN(parsedValue) ? 0 : parsedValue;
+//         }
+//       });
+
+//       // 5. Xử lý kiểu Boolean
+//       const toBoolean = (val) =>
+//         val === "true" || val === "1" || val === true || val === 1;
+
+//       variantData.isDefault = toBoolean(variantData.isDefault);
+//       variantData.isActive = toBoolean(variantData.isActive);
+
+//       // 6. Validate
+//       if (!variantData.sku) {
+//         throw new Error("Mã SKU là bắt buộc.");
+//       }
+
+//       // 7. Gọi Service
+//       return await productVariantService.createVariant({
+//         ...variantData,
+//         attributes: variantData.attributeValueIds
+//       });
+//     }));
+
+//     return res.status(201).json({
+//       success: true,
+//       message: `Tạo ${createdVariants.length} biến thể thành công`,
+//       data: createdVariants,
+//     });
+//   } catch (error) {
+//     console.error("❌ Controller Error:", error);
+
+//     if (error.code === 11000) {
+//       return res.status(409).json({
+//         success: false,
+//         message: "Mã SKU này đã tồn tại, vui lòng kiểm tra lại.",
+//       });
+//     }
+
+//     return res.status(400).json({
+//       success: false,
+//       message: error.message || "Lỗi khi xử lý dữ liệu biến thể",
+//     });
+//   }
+// };
+
+
+export const createVariant = async (req, res) => {
   try {
-    // 1. Lấy danh sách biến thể (hoặc tạo mảng chứa 1 phần tử nếu chỉ có dữ liệu đơn)
     const variantsList = Array.isArray(req.body.variants) 
       ? req.body.variants 
-      : [{ ...req.body }]; // Fallback nếu không phải mảng variants
+      : [{ ...req.body }];
 
-    // Xử lý tất cả các biến thể
-    const createdVariants = await Promise.all(variantsList.map(async (v) => {
-      // Clone dữ liệu từ phần tử trong mảng
+    const allVariantFiles = req.files ? req.files.filter(f => f.fieldname === 'variantImages') : [];
+
+    const createdVariants = await Promise.all(variantsList.map(async (v, index) => {
       let variantData = { ...v, productId: req.body.productId };
 
-      // 2. Xử lý logic attributes
       if (variantData.attributeValueIds) {
         if (typeof variantData.attributeValueIds === "string") {
           try {
@@ -33,21 +133,24 @@ export const createVariant = async (req, res) => {
         variantData.attributeValueIds = variantData.attributes;
       }
 
-     if (req.files && req.files.length > 0) {
-      // Tìm file tương ứng dựa trên imageIndex mà bạn đã gửi từ client
-      // Lưu ý: v.imageIndex phải được truyền đúng từ client
-      const fileIndex = parseInt(v.imageIndex); 
-      const uploadedFile = req.files.find(f => f.originalname === v.imageName || (fileIndex !== NaN && req.files[fileIndex]));
-      
-      // Hoặc đơn giản hơn nếu bạn biết chắc chắn thứ tự:
-      const foundFile = req.files[fileIndex]; 
-      
-      if (foundFile) {
-        variantData.image = foundFile.path || foundFile.filename;
-      }
-    }
+      if (allVariantFiles.length > 0) {
+        const fileIndex = parseInt(v.imageIndex);
+        if (!isNaN(fileIndex) && allVariantFiles[fileIndex]) {
+          variantData.image = allVariantFiles[fileIndex].path || allVariantFiles[fileIndex].filename;
+        } else if (allVariantFiles[0]) {
+          variantData.image = allVariantFiles[0].path || allVariantFiles[0].filename;
+        }
 
-      // 4. Ép kiểu Number an toàn
+        if (variantData.image) {
+          const subFiles = allVariantFiles.filter(f => (f.path || f.filename) !== variantData.image);
+          variantData.images = subFiles.map(file => file.path || file.filename);
+        } else {
+          variantData.images = [];
+        }
+      } else {
+        variantData.images = [];
+      }
+
       const numericFields = ["price", "stock", "compareAtPrice"];
       numericFields.forEach((field) => {
         if (variantData[field] !== undefined && variantData[field] !== "") {
@@ -56,19 +159,16 @@ export const createVariant = async (req, res) => {
         }
       });
 
-      // 5. Xử lý kiểu Boolean
       const toBoolean = (val) =>
         val === "true" || val === "1" || val === true || val === 1;
 
       variantData.isDefault = toBoolean(variantData.isDefault);
       variantData.isActive = toBoolean(variantData.isActive);
 
-      // 6. Validate
       if (!variantData.sku) {
         throw new Error("Mã SKU là bắt buộc.");
       }
 
-      // 7. Gọi Service
       return await productVariantService.createVariant({
         ...variantData,
         attributes: variantData.attributeValueIds
@@ -96,6 +196,7 @@ export const createVariant = async (req, res) => {
     });
   }
 };
+
 
 export const getVariantsByProduct = async (req, res) => {
   try {

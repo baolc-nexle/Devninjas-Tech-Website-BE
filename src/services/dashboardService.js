@@ -95,27 +95,108 @@ export const getChartData = async (days = 30, startDateParam = null, endDatePara
   return chartData;
 };
 
+// export const getCategoryStats = async (startDate, endDate) => {
+//   console.log("DEBUG - Input Dates:", startDate, endDate);
+
+//   const pipeline = [
+//     // 1. Lọc đơn hàng theo thời gian và trạng thái (dùng "status" đúng với schema Order)
+//     { 
+//       $match: { 
+//         createdAt: { $gte: startDate, $lte: endDate },
+//         // status: "paid", // Bỏ comment dòng này nếu bạn muốn lọc chính xác đơn đã thanh toán/hoàn thành
+//       } 
+//     },
+//     // 2. Nối sang bảng "orderdetails" (khớp với model OrderDetail của bạn)
+//     {
+//       $lookup: {
+//         from: "orderdetails", // Tên collection trong MongoDB (thường là dạng số nhiều, viết thường)
+//         localField: "_id",
+//         foreignField: "orderId",
+//         as: "items"
+//       }
+//     },
+//     // 3. Facet để kiểm tra số lượng bản ghi và gom nhóm dữ liệu vẽ biểu đồ tròn
+//     {
+//       $facet: {
+//         "totalOrdersFound": [{ $count: "count" }],
+//         "data": [
+//           { $unwind: "$items" },
+//           {
+//             $lookup: {
+//               from: "products",
+//               localField: "items.productId", // Khớp với trường productId trong orderDetailSchema
+//               foreignField: "_id",
+//               as: "productInfo"
+//             }
+//           },
+//           { $unwind: "$productInfo" },
+//           {
+//             $lookup: {
+//               from: "categories",
+//               localField: "productInfo.categoryId",
+//               foreignField: "_id",
+//               as: "categoryDetails"
+//             }
+//           },
+//           { $unwind: "$categoryDetails" },
+//           {
+//             $group: {
+//               _id: "$categoryDetails.name",
+//               value: { $sum: "$items.quantity" } // Cộng dồn số lượng sản phẩm theo từng danh mục
+//             }
+//           },
+//           {
+//             $project: {
+//               _id: 0,
+//               name: "$_id",
+//               value: 1
+//             }
+//           }
+//         ]
+//       }
+//     }
+//   ];
+
+//   const result = await Order.aggregate(pipeline);
+  
+//   // Kiểm tra log ở terminal xem totalOrdersFound ra số mấy
+//   console.log("DEBUG - Total Orders Found:", result[0].totalOrdersFound);
+//   console.log("DEBUG - Final Data:", result[0].data);
+
+//   return { data: result[0].data };
+// };
+
 export const getCategoryStats = async (startDate, endDate) => {
-  console.log("DEBUG - Input Dates:", startDate, endDate);
+  console.log("--------------------------------------------------");
+  console.log("DEBUG - 1. Input Dates:", startDate, endDate);
 
   const pipeline = [
-    // 1. Lọc đơn hàng
+    // 1. Lọc đơn hàng theo thời gian và trạng thái (dùng "status" đúng với schema Order)
     { 
       $match: { 
         createdAt: { $gte: startDate, $lte: endDate },
-        paymentStatus: "paid", 
+        // status: "paid", // Bỏ comment dòng này nếu bạn muốn lọc chính xác đơn đã thanh toán/hoàn thành
       } 
     },
-    // 2. Facet để kiểm tra số lượng tại từng bước
+    // 2. Nối sang bảng "orderdetails" (khớp với model OrderDetail của bạn)
+    {
+      $lookup: {
+        from: "orderdetails", // Tên collection trong MongoDB (thường là dạng số nhiều, viết thường)
+        localField: "_id",
+        foreignField: "orderId",
+        as: "items"
+      }
+    },
+    // 3. Facet để kiểm tra số lượng bản ghi và gom nhóm dữ liệu vẽ biểu đồ tròn
     {
       $facet: {
-        "totalOrdersFound": [{ $count: "count" }], // Đếm xem có bao nhiêu order khớp
+        "totalOrdersFound": [{ $count: "count" }],
         "data": [
           { $unwind: "$items" },
           {
             $lookup: {
               from: "products",
-              localField: "items.productId",
+              localField: "items.productId", // Khớp với trường productId trong orderDetailSchema
               foreignField: "_id",
               as: "productInfo"
             }
@@ -133,7 +214,7 @@ export const getCategoryStats = async (startDate, endDate) => {
           {
             $group: {
               _id: "$categoryDetails.name",
-              value: { $sum: "$items.quantity" }
+              value: { $sum: "$items.quantity" } // Cộng dồn số lượng sản phẩm theo từng danh mục
             }
           },
           {
@@ -150,9 +231,19 @@ export const getCategoryStats = async (startDate, endDate) => {
 
   const result = await Order.aggregate(pipeline);
   
-  // Log kết quả kiểm tra
-  console.log("DEBUG - Total Orders Found:", result[0].totalOrdersFound);
-  console.log("DEBUG - Final Data:", result[0].data);
+  // 🔥 Thêm các dòng debug chi tiết kết quả trả về từ aggregate
+  console.log("DEBUG - 2. Raw Aggregate Result:", JSON.stringify(result, null, 2));
+  
+  if (result && result.length > 0) {
+    console.log("DEBUG - 3. Total Orders Found:", result[0].totalOrdersFound);
+    console.log("DEBUG - 4. Final Data Array:", result[0].data);
+  } else {
+    console.log("DEBUG - 3 & 4. Result trả về rỗng hoàn toàn!");
+  }
+  console.log("--------------------------------------------------");
 
-  return { data: result[0].data };
+  // Đảm bảo an toàn không bị lỗi crash nếu result[0] trống
+  const finalData = (result && result[0] && result[0].data) ? result[0].data : [];
+
+  return { data: finalData };
 };

@@ -509,8 +509,11 @@ export const getAllOrders = async (query) => {
 
   const skip = (page - 1) * limit;
 
-
-  let match = {};
+  let match = {
+    // ĐIỀU KIỆN THÊM VÀO: Chỉ lấy những đơn hàng đã có tên và số điện thoại người nhận (loại bỏ đơn nháp)
+    receiverName: { $exists: true, $ne: null, $ne: "" },
+    receiverPhone: { $exists: true, $ne: null, $ne: "" },
+  };
 
   // filter status
   if (status) {
@@ -564,8 +567,6 @@ export const getAllOrders = async (query) => {
       },
     },
   ]);
-
-
 
   const total = await Order.countDocuments(match);
 

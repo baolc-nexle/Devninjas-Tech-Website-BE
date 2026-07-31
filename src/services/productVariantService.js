@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 
 export const createVariant = async (data) => {
   // data đã bao gồm 'attributes' là mảng các object: [{attributeValueId: "..."}]
-  let { productId, sku, price, stock, attributes, ...rest } = data;
+  let { productId, sku, price, stock, attributes, images, ...rest } = data;
 
   // 1. Validate dữ liệu cơ bản
   if (!sku) throw new Error("Mã SKU là bắt buộc");
@@ -48,6 +48,11 @@ export const createVariant = async (data) => {
   if (isNaN(numPrice) || numPrice <= 0) throw new Error("Giá bán không hợp lệ");
   if (isNaN(numStock) || numStock < 0) throw new Error("Tồn kho không hợp lệ");
 
+  // Xử lý an toàn mảng nhiều ảnh (images)
+  const validImages = Array.isArray(images) ? images.filter(Boolean) : [];
+
+  console.log("--- Dữ liệu chuẩn bị lưu vào DB ---", { sku, images: validImages, rest });
+
   // 4. Tạo mới
   const variant = await ProductVariant.create({
     productId,
@@ -55,6 +60,7 @@ export const createVariant = async (data) => {
     price: numPrice,
     stock: numStock,
     attributes: attributes, 
+    images: validImages, // Lưu mảng nhiều ảnh vào DB
     ...rest,
   });
 

@@ -1,56 +1,73 @@
 import Product from '../models/Product.js';
-import ProductVariant from '../models/ProductVariant.js'; // Đã thêm dấu '=' chuẩn xác
-import OpenAI from 'openai';
+import ProductVariant from '../models/ProductVariant.js';
+import { GoogleGenAI } from "@google/genai";
 
-// Khởi tạo kết nối với Groq API
-const groq = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
-  baseURL: 'https://api.groq.com/openai/v1',
-});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const getChatbotResponseService = async (userMessage) => {
   try {
-    // Bước 1: Tìm sản phẩm từ MongoDB và dùng .populate() để kéo dữ liệu từ bảng Variant sang
+    // Bước 1: Tách từ khóa từ câu hỏi của khách để tìm kiếm MongoDB linh hoạt hơn (tránh lệch khớp chuỗi dài)
+    const keywords = userMessage.split(" ").filter(word => word.length > 1);
+    const searchQueryConditions = keywords.map(keyword => ({
+      name: { $regex: keyword, $options: 'i' }
+    }));
+
+    // Tìm kiếm kết hợp cả câu và từng từ khóa lẻ trong name, description, category
     const matchedProducts = await Product.find({
       $or: [
         { name: { $regex: userMessage, $options: 'i' } },
-        { description: { $regex: userMessage, $options: 'i' } }
+        { description: { $regex: userMessage, $options: 'i' } },
+        { category: { $regex: userMessage, $options: 'i' } },
+        ...searchQueryConditions
       ]
     })
-    .populate('variants') // Lệnh này giúp kéo toàn bộ thông tin chi tiết từ bảng Variant sang
-    .limit(3); 
+    .populate('variants')
+    .limit(5); // Lấy tối đa 5 sản phẩm
 
     const contextData = matchedProducts.length > 0 
       ? JSON.stringify(matchedProducts, null, 2) 
-      : "Không tìm thấy sản phẩm nào khớp trong kho dữ liệu hiện tại.";
+      : "Không tìm thấy sản phẩm cụ thể, hãy tư vấn các sản phẩm nổi bật hiện có trong hệ thống.";
 
-    // Bước 2: Gọi API của AI (Groq - Llama 3) với System Prompt hướng dẫn đọc dữ liệu từ bảng riêng
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: `Bạn là trợ lý nhân viên tư vấn bán hàng thông minh, thân thiện của website thương mại điện tử. 
-          
-          QUY TẮC BẮT BUỘC:
-          - Dữ liệu cung cấp bao gồm thông tin sản phẩm và mảng 'variants' được liên kết từ bảng biến thể riêng biệt.
-          - Khi khách hàng hỏi chi tiết về phiên bản, màu sắc, cấu hình hoặc giá cụ thể, hãy khai thác từ mảng 'variants' đã được đính kèm trong mỗi sản phẩm để tư vấn chính xác.
-          - Tuyệt đối không tự bịa đặt thông tin, giá bán hay phiên bản không có trong dữ liệu.
-          - Nếu không tìm thấy sản phẩm hoặc biến thể phù hợp, hãy lịch sự thông báo và hướng dẫn khách liên hệ.`
-        },
-        {
-          role: 'user',
-          content: `DỮ LIỆU SẢN PHẨM VÀ BIẾN THỂ (Từ các bảng MongoDB):\n${contextData}\n\nCÂU HỎI CỦA KHÁCH HÀNG: "${userMessage}"`
+    // Bước 2: System Prompt với quy tắc ép buộc AI phải chốt sản phẩm tư vấn
+    const systemInstruction = `Bạn là trợ lý nhân viên tư vấn bán hàng thông minh, thân thiện của website thương mại điện tử. 
+    
+QUY TẮC BẮT BUỘC:
+- Dữ liệu sản phẩm và mảng 'variants' (phiên bản, giá cả, màu sắc) được cung cấp từ kho dữ liệu MongoDB bên dưới.
+- BẮT BUỘC PHẢI chọn và giới thiệu ít nhất từ 1 đến 3 sản phẩm có trong "KHO DỮ LIỆU SẢN PHẨM" để tư vấn trực tiếp cho khách. 
+- Tuyệt đối KHÔNG ĐƯỢC né tránh bằng cách hỏi ngược lại khách quá nhiều câu hỏi vòng vo nếu trong kho đã có sản phẩm. Hãy chỉ ra luôn sản phẩm phù hợp nhất và giải thích lý do vì sao nên mua.
+- Nếu khách hỏi tầm giá hoặc phân khúc, hãy lọc ra các biến thể có mức giá sát nhất để tư vấn.
+- Tuyệt đối không tự bịa đặt thông tin, giá bán hay phiên bản không có trong dữ liệu.`;
+
+    const userPrompt = `KHO DỮ LIỆU SẢN PHẨM TRÊN HỆ THỐNG:\n${contextData}\n\nCÂU HỎI VÀ NHU CẦU CỦA KHÁCH HÀNG: "${userMessage}"`;
+
+    // Bước 3: Gọi Gemini DUY NHẤT 1 LẦN để tạo câu trả lời tư vấn cuối cùng cho khách
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: [
+        { 
+          role: 'user', 
+          parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }] 
         }
       ],
-      temperature: 0.7,
+      config: {
+        temperature: 0.7,
+      }
     });
 
-    const aiReply = completion.choices[0].message.content;
-    return aiReply;
+    const aiReply = response.text;
+
+    if (!aiReply) {
+      throw new Error("Không nhận được phản hồi từ AI.");
+    }
+
+    // Trả về cả câu trả lời của AI và danh sách sản phẩm tìm được để Frontend hiển thị card
+    return {
+      reply: aiReply,
+      products: matchedProducts
+    };
 
   } catch (error) {
-    console.error("Lỗi Service Chatbot:", error);
+    console.error("Lỗi Service Chatbot Gemini:", error);
     throw new Error("Không thể xử lý yêu cầu từ AI lúc này.");
   }
 };

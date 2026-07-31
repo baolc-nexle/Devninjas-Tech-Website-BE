@@ -12,12 +12,13 @@ export const handleChatbotConsultation = async (req, res) => {
       });
     }
 
-    // Gọi Service xử lý logic tìm kiếm MongoDB và tương tác với AI (Groq)
-    const aiReply = await getChatbotResponseService(message);
+    // Gọi Service xử lý logic tìm kiếm MongoDB và tương tác với AI (Gemini)
+    const result = await getChatbotResponseService(message);
 
     return res.status(200).json({
       success: true,
-      reply: aiReply
+      reply: result.reply,     // Text tư vấn của AI
+      products: result.products // Danh sách sản phẩm từ MongoDB để hiện card
     });
 
   } catch (error) {
