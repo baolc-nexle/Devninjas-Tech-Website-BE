@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Brand from "../models/brand.js";
+import Brand from "../models/Brand.js";
 
 export const createBrand = async (data) => {
   // if (!data) {
