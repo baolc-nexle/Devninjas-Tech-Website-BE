@@ -39,7 +39,7 @@ connectDB();
 const app = express();
 
 // middleware
-app.use(cors({ origin: "https://devninjas-tech-website-fe-be-five.vercel.app/" , credentials: true}));
+app.use(cors({ origin: "https://devninjas-tech-website-fe-be-five.vercel.app" , credentials: true}));
 app.use(cookieParser());
 
 // webhook riêng (KHÔNG qua router payments)
