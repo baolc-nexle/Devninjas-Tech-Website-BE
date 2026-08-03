@@ -27,7 +27,7 @@ export const login = async (req, res) => {
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -35,7 +35,7 @@ export const login = async (req, res) => {
     res.cookie("accessToken", result.accessToken, {
       httpOnly: true, // Không cho JS đọc
       secure: true,
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 60 * 60 * 1000, // 1 giờ
     });
 
@@ -63,7 +63,7 @@ export const getRefreshToken = async (req, res) => {
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
