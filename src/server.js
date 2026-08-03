@@ -39,7 +39,29 @@ connectDB();
 const app = express();
 
 // middleware
-app.use(cors({ origin: "https://devninjas-tech-website-fe-be-five.vercel.app" , credentials: true}));
+// Danh sách các nguồn được phép gọi API
+const allowedOrigins = [
+  "https://devninjas-tech-website-fe-be-five.vercel.app", // Domain trên Vercel
+  "http://localhost:3000",                                // Chạy ở local (Next.js thường là 3000)
+  "http://localhost:3001",                                // Đề phòng chạy port khác
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Cho phép các request không có origin (như Postman, mobile app, curl)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `CORS policy error: Origin ${origin} is not allowed by CORS.`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true, // Bắt buộc giữ nguyên để cho phép nhận/gửi Cookie (AccessToken, RefreshToken)
+  })
+);
+
 app.use(cookieParser());
 
 // webhook riêng (KHÔNG qua router payments)
