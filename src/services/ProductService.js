@@ -50,7 +50,10 @@ export const getBestSellerProducts = async (limit = 8) => {
 export const getProductById = async (id) => {
   validateId(id);
 
-  const product = await Product.findById(id).populate('variants');
+  const product = await Product.findById(id)
+    .populate('variants')
+    .populate('brandId', 'name slug')       // Lấy tên và slug của Brand
+    .populate('categoryId', 'name slug');   // Lấy tên và slug của Category
 
   if (!product) {
     throw new Error("Sản phẩm không tồn tại");
