@@ -7,6 +7,7 @@ import * as stockService from "../services/stockService.js";
 import * as inventoryService from "../services/inventoryService.js";
 import { sendCancelOrderEmail } from "../utils/sendEmail.js";
 import mongoose from "mongoose";
+import Address from "../models/Address.js";
 
 
 
@@ -606,6 +607,7 @@ export const updateOrder = async (orderId, updateData) => {
     'receiverPhone', 
     'receiverEmail', 
     'province', 
+    "district",
     'ward', 
     'address', 
     'paymentMethod'
@@ -617,6 +619,51 @@ export const updateOrder = async (orderId, updateData) => {
       order[field] = updateData[field];
     }
   });
+
+// Nếu người dùng chọn đặt làm địa chỉ mặc định
+if (updateData.setAsDefault) {
+
+  // Bỏ mặc định của tất cả địa chỉ cũ
+  await Address.updateMany(
+    { userId: order.userId },
+    { isDefault: false }
+  );
+
+  // Kiểm tra địa chỉ đã tồn tại chưa
+  const existedAddress = await Address.findOne({
+    userId: order.userId,
+    province: updateData.province,
+    district: updateData.district,
+    ward: updateData.ward,
+    detail: updateData.address,
+  });
+
+  if (existedAddress) {
+
+    // Cập nhật địa chỉ cũ thành mặc định
+    existedAddress.fullname = updateData.receiverName;
+    existedAddress.phone = updateData.receiverPhone;
+    existedAddress.isDefault = true;
+
+    await existedAddress.save();
+
+  } else {
+
+    // Tạo địa chỉ mới
+    await Address.create({
+      userId: order.userId,
+      fullname: updateData.receiverName,
+      phone: updateData.receiverPhone,
+      province: updateData.province,
+      district: updateData.district,
+      ward: updateData.ward,
+      detail: updateData.address,
+      isDefault: true,
+    });
+
+  }
+
+}
 
   // 6. Lưu vào DB
   await order.save();

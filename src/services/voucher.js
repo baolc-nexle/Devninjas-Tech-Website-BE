@@ -273,22 +273,41 @@ export const finalizeVoucher = async (voucherId, orderId, userId) => {
   return { message: "Voucher đã được sử dụng" };
 };
 
-export const getAvailableVouchers = async (orderValue) => {
+export const getAvailableVouchers = async (orderValue, userId) => {
   const now = new Date();
   
   // Lấy các voucher còn hạn, còn lượt, và thỏa mãn minOrderValue
-  const vouchers = await Voucher.find({
-    isActive: true,
-    startDate: { $lte: now },
-    endDate: { $gte: now },
-    $or: [
-      { usageLimit: 0 },
-      { $expr: { $lt: ["$usedCount", "$usageLimit"] } }
-    ],
-    minOrderValue: { $lte: orderValue || 0 }
-  }).sort({ createdAt: -1 }); // Lấy mới nhất lên trước
+const vouchers = await Voucher.find({
+  isActive: true,
+  startDate: { $lte: now },
+  endDate: { $gte: now },
+  $or: [
+    { usageLimit: 0 },
+    { $expr: { $lt: ["$usedCount", "$usageLimit"] } }
+  ],
+  minOrderValue: { $lte: orderValue || 0 }
+}).sort({ createdAt: -1 });
 
-  return vouchers;
+const availableVouchers = [];
+
+for (const voucher of vouchers) {
+
+  const usedCount = await VoucherUsage.countDocuments({
+    voucherId: voucher._id,
+    userId,
+  });
+
+  if (
+    voucher.usageLimitPerUser > 0 &&
+    usedCount >= voucher.usageLimitPerUser
+  ) {
+    continue; // bỏ voucher này
+  }
+
+  availableVouchers.push(voucher);
+}
+
+return availableVouchers;
 };
 
 export const getAllVouchers = async () => {

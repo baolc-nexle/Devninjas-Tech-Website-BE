@@ -101,17 +101,23 @@ export const removeVoucher = async (req, res) => {
 // Lấy danh sách voucher người dùng có thể sử dụng
 export const getAvailableVouchers = async (req, res) => {
   try {
-    // Lấy giá trị đơn hàng từ query string, mặc định là 0
     const orderValue = Number(req.query.orderValue) || 0;
-    
-    const vouchers = await VoucherService.getAvailableVouchers(orderValue);
-    
-    res.status(200).json({ 
-      success: true, 
+    const userId = req.user.id;
+
+    const vouchers = await VoucherService.getAvailableVouchers(
+      orderValue,
+      userId
+    );
+
+    res.status(200).json({
+      success: true,
       count: vouchers.length,
-      data: vouchers 
+      data: vouchers,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
