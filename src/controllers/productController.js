@@ -269,3 +269,21 @@ export const getProductsByCategory = async (req, res) => {
     });
   }
 };
+
+export const getRelatedProducts = async (req, res) => {
+  try {
+    const { id } = req.params; // Lấy ID sản phẩm từ URL params
+    const products = await ProductService.getRelatedProductsService(id);
+
+    return res.status(200).json({
+      success: true,
+      data: products
+    });
+  } catch (error) {
+    console.error("Lỗi controller lấy sản phẩm tương tự:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi từ phía server"
+    });
+  }
+};
