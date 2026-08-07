@@ -21,27 +21,31 @@ export const compareProductsService = async (productIds, userNeed) => {
 
     const contextData = JSON.stringify(productsToCompare, null, 2);
 
-    // 3. System Prompt cấu trúc lại để AI tóm tắt ngắn gọn và lập bảng so sánh nhanh
-    const systemInstruction = `Bạn là một chuyên gia tư vấn thương mại điện tử cấp cao. 
-NHIỆM VỤ: So sánh các sản phẩm dựa trên "KHO DỮ LIỆU SẢN PHẨM" và nhu cầu của khách hàng ("${userNeed}").
+    // 3. System Prompt cấu trúc lại để AI tự động tạo văn bản đánh giá VÀ Bảng so sánh thông số
+    const systemInstruction = `Bạn là một chuyên gia tư vấn công nghệ và thương mại điện tử cao cấp, trung thực và khách quan.
+NHIỆM VỤ: Phân tích, đối chiếu sản phẩm và tư vấn dựa trên nhu cầu thực tế của khách hàng ("${userNeed}").
 
-YÊU CẦU ĐỊNH DẠNG TRẢ VỀ (Cực kỳ quan trọng để chống lười đọc):
-Hãy trình bày ngắn gọn, súc tích theo cấu trúc sau bằng Markdown:
+YÊU CẦU ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC (Sử dụng Markdown):
+Hãy trình bày báo cáo theo đúng 3 phần sau:
 
-### 💡 LỜI KHUYÊN & QUYẾT ĐỊNH NHANH
-- Viết tối đa 2-3 câu ngắn gọn chốt thẳng: Khách nên mua sản phẩm nào dựa trên nhu cầu "${userNeed}" và lý do cốt lõi.
+### 1. ĐÁNH GIÁ TỔNG QUAN & ƯU/NHƯỢC ĐIỂM
+- Phân tích ngắn gọn định hướng phân khúc của từng sản phẩm.
+- Nêu rõ Ưu điểm cốt lõi và Nhược điểm chính của từng máy khi đặt cạnh nhau để phục vụ nhu cầu "${userNeed}".
 
-### 📊 ĐÁNH GIÁ NHANH ƯU/NHƯỢC ĐIỂM
-- **[Tên sản phẩm 1]**: Ưu điểm nổi bật nhất / Nhược điểm chính.
-- **[Tên sản phẩm 2]**: Ưu điểm nổi bật nhất / Nhược điểm chính.
+### 2. BẢNG SO SÁNH THÔNG SỐ KỸ THUẬT
+- Hãy tự động lập một **Bảng Markdown** (Table) đối chiếu trực tiếp các thông số kỹ thuật quan trọng nhất lấy từ dữ liệu (Ví dụ các cột: Tiêu chí, [Tên Sản Phẩm 1], [Tên Sản Phẩm 2]).
+- Các dòng tiêu chí gợi ý: Mức giá, Hệ điều hành/Phần mềm, Chipset/CPU, Card đồ họa (GPU), RAM/Bộ nhớ trong, Màn hình, Pin/Sạc.
 
-Tuyệt đối không viết văn bản dài dòng lan man. Dựa hoàn toàn vào thông số thực tế trong dữ liệu.`;
+### 3. LỜI KHUYÊN & QUYẾT ĐỊNH CUỐI CÙNG
+- Chốt thẳng sản phẩm nào là lựa chọn TỐT NHẤT cho khách hàng và giải thích lý do ngắn gọn để khách chốt đơn.
+
+Dựa hoàn toàn vào thông số thực tế trong kho dữ liệu, tuyệt đối không bịa đặt.`;
 
     const userPrompt = `KHO DỮ LIỆU SẢN PHẨM CẦN SO SÁNH:\n${contextData}\n\nNHU CẦU THỰC TẾ CỦA KHÁCH HÀNG: "${userNeed}"`;
 
     // 4. Gọi Gemini Model
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash', // Hoặc gemini-3.5-flash tùy theo project của bạn
+      model: 'gemini-3.5-flash', 
       contents: [
         { 
           role: 'user', 
@@ -49,7 +53,7 @@ Tuyệt đối không viết văn bản dài dòng lan man. Dựa hoàn toàn v�
         }
       ],
       config: {
-        temperature: 0.3, // Giảm thêm để AI tập trung đúng trọng tâm, tránha sáng tạo lan man
+        temperature: 0.3, 
       }
     });
 
@@ -62,7 +66,7 @@ Tuyệt đối không viết văn bản dài dòng lan man. Dựa hoàn toàn v�
     // Trả về kết quả cho Controller/Frontend
     return {
       analysis: aiReply,
-      products: productsToCompare // Trả kèm mảng sản phẩm gốc để Frontend render bảng thông số & card sản phẩm bên dưới
+      products: productsToCompare // Vẫn trả kèm mảng sản phẩm để Frontend vẽ 2 card bấm xem chi tiết ở tầng dưới cùng
     };
 
   } catch (error) {
