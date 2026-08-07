@@ -23,4 +23,6 @@ router.post("/", uploadProduct.single("image"), productController.createProduct)
 router.put("/:id", uploadProduct.single("image"), productController.updateProduct);
 router.delete("/:id", productController.deleteProduct);
 
+router.get("/:id/related", productController.getRelatedProducts);
+
 export default router;

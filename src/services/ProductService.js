@@ -299,3 +299,23 @@ const attachTagsToProducts = (products) => {
     return { ...p, tag }; // Trả về object đã gắn tag
   });
 };
+
+export const getRelatedProductsService = async (productId) => {
+  validateId(productId);
+
+  // 1. Tìm sản phẩm hiện tại để lấy thông tin danh mục (categoryId)
+  const currentProduct = await Product.findById(productId);
+  if (!currentProduct) {
+    throw new Error("Không tìm thấy sản phẩm");
+  }
+
+  // 2. Tìm các sản phẩm cùng danh mục nhưng khác ID sản phẩm hiện tại
+  const relatedProducts = await Product.find({
+    categoryId: currentProduct.categoryId,
+    _id: { $ne: productId } // $ne nghĩa là khác sản phẩm đang xem
+  })
+    .limit(6) // Giới hạn lấy tối đa 6 sản phẩm
+    .populate("categoryId", "name");
+
+  return relatedProducts;
+};
