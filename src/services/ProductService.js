@@ -3,12 +3,27 @@ import Category from "../models/Category.js";
 import { syncVariants } from "./productVariantService.js";
 import ProductVariant from "../models/ProductVariant.js";
 import mongoose from "mongoose";
+import AttributeValue from "../models/AttributeValue.js";
 
 // check format id
 const validateId = (id) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new Error("ID không hợp lệ");
   }
+};
+
+const resolveCategoryId = async (categoryIdentifier) => {
+  // Accept either MongoDB ObjectId or category slug
+  if (mongoose.Types.ObjectId.isValid(categoryIdentifier)) {
+    return categoryIdentifier;
+  }
+
+  const category = await Category.findOne({ slug: categoryIdentifier });
+  if (!category) {
+    throw new Error("Danh mục không tồn tại");
+  }
+
+  return category._id.toString();
 };
 
 // get all
@@ -50,11 +65,17 @@ export const getBestSellerProducts = async (limit = 8) => {
 export const getProductById = async (id) => {
   validateId(id);
 
-  const product = await Product.findById(id).populate('variants');
+  console.log("Đang tìm Product với ID:", id);
+
+  const product = await Product.findById(id);
+
+  console.log("Kết quả tìm Product:", product);
 
   if (!product) {
-    throw new Error("Sản phẩm không tồn tại");
+    return null;
   }
+
+  await product.populate("variants");
 
   return product;
 };
@@ -202,9 +223,9 @@ export const deleteProduct = async (id) => {
 // };
 
 export const getProductsByCategory = async (categoryId, limit = 20, page = 1, filters = {}) => {
-  validateId(categoryId);
+  const resolvedCategoryId = await resolveCategoryId(categoryId);
 
-  const category = await Category.findById(categoryId);
+  const category = await Category.findById(resolvedCategoryId);
   if (!category) {
     throw new Error("Danh mục không tồn tại");
   }
@@ -219,7 +240,7 @@ export const getProductsByCategory = async (categoryId, limit = 20, page = 1, fi
     // TRƯỜNG HỢP 1: KHÔNG LỌC - Lấy trực tiếp từ bảng Product
     const skip = (page - 1) * limit;
     products = await Product.find({ 
-      categoryId: categoryId, 
+      categoryId: resolvedCategoryId, 
       status: "Active" 
     })
       .sort({ createdAt: -1 })
@@ -228,7 +249,7 @@ export const getProductsByCategory = async (categoryId, limit = 20, page = 1, fi
       .populate("categoryId", "name");
 
     totalProducts = await Product.countDocuments({ 
-      categoryId: categoryId, 
+      categoryId: resolvedCategoryId, 
       status: "Active" 
     });
   } else {
@@ -247,7 +268,7 @@ export const getProductsByCategory = async (categoryId, limit = 20, page = 1, fi
     // 2. Lấy danh sách biến thể thỏa mãn bộ lọc
     const variants = await ProductVariant.find(variantMatch).populate({
       path: "productId",
-      match: { categoryId: categoryId, status: "Active" }
+      match: { categoryId: resolvedCategoryId, status: "Active" }
     });
 
     // 3. Lọc ra danh sách Product ID duy nhất từ các biến thể
@@ -295,4 +316,73 @@ const attachTagsToProducts = (products) => {
     
     return { ...p, tag }; // Trả về object đã gắn tag
   });
+};
+
+
+export const getCategoryFilters = async (categoryId) => {
+  const resolvedCategoryId = await resolveCategoryId(categoryId);
+
+  // 1. Lấy tất cả sản phẩm thuộc danh mục
+  const products = await Product.find({
+    categoryId: resolvedCategoryId,
+    status: "Active",
+  });
+
+  const productIds = products.map((p) => p._id);
+
+  // Nếu không có sản phẩm thì trả về mảng rỗng
+  if (productIds.length === 0) {
+    return [];
+  }
+
+  // 2. Lấy tất cả variants của các sản phẩm
+  const variants = await ProductVariant.find({
+    productId: {
+      $in: productIds,
+    },
+  }).populate({
+    path: "attributes.attributeValueId",
+    populate: {
+      path: "attributeId",
+    },
+  });
+
+  // 3. Gom nhóm các thuộc tính
+  const filterMap = new Map();
+
+  variants.forEach((variant) => {
+    variant.attributes.forEach((attr) => {
+      const value = attr.attributeValueId;
+
+      if (!value || !value.attributeId) return;
+
+      const attributeId = value.attributeId._id.toString();
+
+      if (!filterMap.has(attributeId)) {
+        filterMap.set(attributeId, {
+          _id: attributeId,
+          name: value.attributeId.name,
+          values: [],
+        });
+      }
+
+      const filter = filterMap.get(attributeId);
+
+      // Không thêm trùng value
+      const exist = filter.values.find(
+        (v) => v._id.toString() === value._id.toString()
+      );
+
+      if (!exist) {
+        filter.values.push({
+          _id: value._id,
+          value: value.value,
+          swatch: value.swatch,
+        });
+      }
+    });
+  });
+
+  // 4. Trả về mảng filter
+  return Array.from(filterMap.values());
 };

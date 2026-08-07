@@ -11,7 +11,8 @@ router.get("/", productController.getAllProducts);
 router.get("/home-data", productController.getHomePageData);
 
 // 2. Nhóm Route có tham số định danh cụ thể (Specific Parameter routes)
-// Đặt "category" trước vì nó có tiền tố rõ ràng hơn là :id
+// Đặt các route chi tiết hơn trước để tránh bị bắt nhầm bởi route chung hơn
+router.get("/category/:categoryId/filters", productController.getCategoryFilters);
 router.get("/category/:categoryId", productController.getProductsByCategory);
 
 // 3. Nhóm Route lấy chi tiết theo ID (General Parameter routes)

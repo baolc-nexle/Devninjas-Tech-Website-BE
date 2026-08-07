@@ -48,6 +48,7 @@ export const getHomePageData = async (req, res) => {
 export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log("Backend nhận ID:", id);
 
     // 1. Kiểm tra xem ID có đúng định dạng MongoDB ObjectId không
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -77,6 +78,13 @@ export const getProductById = async (req, res) => {
   } catch (error) {
     // Log lỗi để bạn biết server đang bị gì
     console.error("Lỗi tại getProductById:", error);
+
+    if (error.message === "Sản phẩm không tồn tại") {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sản phẩm với ID này",
+      });
+    }
     
     return res.status(500).json({
       success: false,
@@ -267,5 +275,28 @@ export const getProductsByCategory = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+
+export const getCategoryFilters = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    const filters =
+      await ProductService.getCategoryFilters(categoryId);
+
+    return res.status(200).json({
+      success: true,
+      data: filters,
+    });
+
+  } catch (error) {
+
+    return res.status(400).json({
+      success:false,
+      message:error.message
+    });
+
   }
 };
