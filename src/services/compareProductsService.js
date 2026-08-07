@@ -21,23 +21,27 @@ export const compareProductsService = async (productIds, userNeed) => {
 
     const contextData = JSON.stringify(productsToCompare, null, 2);
 
-    // 3. System Prompt chuyên gia định hướng cho AI phân tích và đưa ra quyết định
-    const systemInstruction = `Bạn là một chuyên gia tư vấn công nghệ và thương mại điện tử cao cấp, trung thực và khách quan.
-    
-NHIỆM VỤ:
-- Phân tích và đối chiếu trực tiếp các sản phẩm được cung cấp trong "KHO DỮ LIỆU SẢN PHẨM".
-- Đặt nhu cầu thực tế của khách hàng ("${userNeed}") làm trọng tâm để đánh giá xem máy nào đáp ứng tốt hơn.
-- Cấu trúc câu trả lời rõ ràng, mạch lạc, chuyên nghiệp:
-  1. **Đánh giá tổng quan**: Phân tích ngắn gọn ưu/nhược điểm cốt lõi của từng sản phẩm khi đặt cạnh nhau.
-  2. **So sánh theo tiêu chí**: (Hiệu năng/Chip, Pin, Màn hình, Giá bán dựa trên variants).
-  3. **Lời khuyên quyết định cuối cùng**: Chỉ rõ sản phẩm nào là lựa chọn TỐT NHẤT cho nhu cầu "${userNeed}" và giải thích lý do thuyết phục tại sao khách nên chốt đơn sản phẩm đó.
-- Tuyệt đối không bịa đặt thông số kỹ thuật ngoài dữ liệu được cung cấp.`;
+    // 3. System Prompt cấu trúc lại để AI tóm tắt ngắn gọn và lập bảng so sánh nhanh
+    const systemInstruction = `Bạn là một chuyên gia tư vấn thương mại điện tử cấp cao. 
+NHIỆM VỤ: So sánh các sản phẩm dựa trên "KHO DỮ LIỆU SẢN PHẨM" và nhu cầu của khách hàng ("${userNeed}").
+
+YÊU CẦU ĐỊNH DẠNG TRẢ VỀ (Cực kỳ quan trọng để chống lười đọc):
+Hãy trình bày ngắn gọn, súc tích theo cấu trúc sau bằng Markdown:
+
+### 💡 LỜI KHUYÊN & QUYẾT ĐỊNH NHANH
+- Viết tối đa 2-3 câu ngắn gọn chốt thẳng: Khách nên mua sản phẩm nào dựa trên nhu cầu "${userNeed}" và lý do cốt lõi.
+
+### 📊 ĐÁNH GIÁ NHANH ƯU/NHƯỢC ĐIỂM
+- **[Tên sản phẩm 1]**: Ưu điểm nổi bật nhất / Nhược điểm chính.
+- **[Tên sản phẩm 2]**: Ưu điểm nổi bật nhất / Nhược điểm chính.
+
+Tuyệt đối không viết văn bản dài dòng lan man. Dựa hoàn toàn vào thông số thực tế trong dữ liệu.`;
 
     const userPrompt = `KHO DỮ LIỆU SẢN PHẨM CẦN SO SÁNH:\n${contextData}\n\nNHU CẦU THỰC TẾ CỦA KHÁCH HÀNG: "${userNeed}"`;
 
-    // 4. Gọi Gemini Model chuẩn Production (sử dụng gemini-2.5-flash hoặc gemini-3.5-flash)
+    // 4. Gọi Gemini Model
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.5-flash', // Hoặc gemini-3.5-flash tùy theo project của bạn
       contents: [
         { 
           role: 'user', 
@@ -45,7 +49,7 @@ NHIỆM VỤ:
         }
       ],
       config: {
-        temperature: 0.4, // Giảm độ sáng tạo để AI tập trung phân tích chính xác thông số thực tế
+        temperature: 0.3, // Giảm thêm để AI tập trung đúng trọng tâm, tránha sáng tạo lan man
       }
     });
 
@@ -55,10 +59,10 @@ NHIỆM VỤ:
       throw new Error("Không nhận được phản hồi phân tích từ AI.");
     }
 
-    // Trả về bài phân tích của AI kèm theo data sản phẩm để Frontend dựng giao diện so sánh trực quan
+    // Trả về kết quả cho Controller/Frontend
     return {
       analysis: aiReply,
-      products: productsToCompare
+      products: productsToCompare // Trả kèm mảng sản phẩm gốc để Frontend render bảng thông số & card sản phẩm bên dưới
     };
 
   } catch (error) {
